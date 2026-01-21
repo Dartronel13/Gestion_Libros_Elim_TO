@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Servidor: localhost:3306
--- Tiempo de generación: 20-01-2026 a las 13:08:43
+-- Tiempo de generación: 21-01-2026 a las 14:49:19
 -- Versión del servidor: 5.7.24
 -- Versión de PHP: 8.3.1
 
@@ -53,6 +53,7 @@ CREATE TABLE `lectores` (
   `apellido` varchar(100) NOT NULL,
   `email` varchar(100) NOT NULL,
   `direccion` varchar(100) NOT NULL,
+  `telefono` varchar(20) DEFAULT NULL,
   `codigo_fiscal` varchar(100) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
@@ -96,7 +97,7 @@ CREATE TABLE `prestamos` (
   `fecha_prestamo` date NOT NULL,
   `fecha_devolucion` date DEFAULT NULL,
   `devuelto` tinyint(1) DEFAULT '0',
-  `id_lector` int(11) DEFAULT NULL
+  `id_lector` int(11) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 --
@@ -137,7 +138,8 @@ ALTER TABLE `libro_categoria`
 --
 ALTER TABLE `prestamos`
   ADD PRIMARY KEY (`id`),
-  ADD KEY `id_libro` (`id_libro`);
+  ADD KEY `id_libro` (`id_libro`),
+  ADD KEY `prestamos_ibfk_2` (`id_lector`);
 
 --
 -- AUTO_INCREMENT de las tablas volcadas
@@ -182,7 +184,8 @@ ALTER TABLE `libro_categoria`
 -- Filtros para la tabla `prestamos`
 --
 ALTER TABLE `prestamos`
-  ADD CONSTRAINT `prestamos_ibfk_1` FOREIGN KEY (`id_libro`) REFERENCES `libros` (`id`);
+  ADD CONSTRAINT `prestamos_ibfk_1` FOREIGN KEY (`id_libro`) REFERENCES `libros` (`id`),
+  ADD CONSTRAINT `prestamos_ibfk_2` FOREIGN KEY (`id_lector`) REFERENCES `lectores` (`id`);
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
