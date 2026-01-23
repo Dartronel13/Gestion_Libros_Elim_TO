@@ -1,5 +1,6 @@
 <?php
 require_once 'db.php';
+
 // La agregue para que detecte que viene de gestion prestamo
 if (isset($_GET['from']) && $_GET['from'] === 'gestion' && isset($_GET['codigo'])) {
     // Pre-llenar el campo de escáner
@@ -13,7 +14,6 @@ if (isset($_GET['from']) && $_GET['from'] === 'gestion' && isset($_GET['codigo']
     });
     </script>';
 }
-
 // Configurar variables para layout
 $titulo_pagina = '📖 Devolución de Libros';
 $icono_titulo = 'fas fa-exchange-alt';

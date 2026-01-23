@@ -400,7 +400,7 @@ $titulo = '📚 Inicio - Sistema de Biblioteca Iglesia';
                 </div>
             </div>
             
-            <!-- BÚSQUEDA RÁPIDA -->
+            <!-- BÚSQUEDA RÁPIDA comentada porque no nos sirve ahorita
             <div class="col-md-4 mb-4">
                 <div class="option-card">
                     <div class="card-header" style="background: linear-gradient(135deg, #2c3e50, #34495e);">
@@ -420,7 +420,7 @@ $titulo = '📚 Inicio - Sistema de Biblioteca Iglesia';
                     </div>
                 </div>
             </div>
-        </div>
+        </div> -->
 
         <!-- PRÉSTAMOS ACTIVOS RECIENTES -->
         <div class="row mb-4">

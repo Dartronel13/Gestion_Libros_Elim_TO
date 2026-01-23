@@ -122,6 +122,33 @@ if ($result_lectores) {
 
 ob_start();
 ?>
+<style>
+/* Estilos para pestañas con texto negro */
+.nav-tabs .nav-link {
+    color: #000000 !important;
+    font-weight: 500;
+    border-bottom: 1px solid transparent;
+}
+
+.nav-tabs .nav-link:hover {
+    color: #000000 !important;
+    background-color: rgba(0, 0, 0, 0.05);
+    border-color: #dee2e6 #dee2e6 transparent;
+}
+
+.nav-tabs .nav-link.active {
+    color: #000000 !important;
+    background-color: #ffffff;
+    border-color: #dee2e6 #dee2e6 #ffffff;
+    font-weight: 600;
+    border-bottom: 3px solid #007bff;
+}
+
+/* Estilos para los badges dentro de las pestañas */
+.nav-tabs .nav-link .badge {
+    color: #ffffff;
+}
+</style>
 
 <!-- DASHBOARD DE ESTADÍSTICAS -->
 <div class="row mb-4">
@@ -258,28 +285,28 @@ ob_start();
     <div class="card-header p-0">
         <ul class="nav nav-tabs" id="tabsPrestamos" role="tablist">
             <li class="nav-item" role="presentation">
-                <a class="nav-link <?php echo $pestaña_activa == 'activos' ? 'active' : ''; ?>" 
+                <a class="nav-link text-dark <?php echo $pestaña_activa == 'activos' ? 'active' : ''; ?>" 
                    href="?tab=activos&busqueda=<?php echo urlencode($busqueda); ?>&filtro_lector=<?php echo $filtro_lector; ?>&filtro_fecha=<?php echo $filtro_fecha; ?>">
                     <i class="fas fa-book me-1"></i> Activos
                     <span class="badge bg-primary ms-1"><?php echo $estadisticas['activos']; ?></span>
                 </a>
             </li>
             <li class="nav-item" role="presentation">
-                <a class="nav-link <?php echo $pestaña_activa == 'por_vencer' ? 'active' : ''; ?>" 
+                <a class="nav-link text-dark <?php echo $pestaña_activa == 'por_vencer' ? 'active' : ''; ?>" 
                    href="?tab=por_vencer&busqueda=<?php echo urlencode($busqueda); ?>&filtro_lector=<?php echo $filtro_lector; ?>&filtro_fecha=<?php echo $filtro_fecha; ?>">
                     <i class="fas fa-clock me-1"></i> Por Vencer
                     <span class="badge bg-warning ms-1"><?php echo $estadisticas['por_vencer']; ?></span>
                 </a>
             </li>
             <li class="nav-item" role="presentation">
-                <a class="nav-link <?php echo $pestaña_activa == 'vencidos' ? 'active' : ''; ?>" 
+                <a class="nav-link text-dark <?php echo $pestaña_activa == 'vencidos' ? 'active' : ''; ?>" 
                    href="?tab=vencidos&busqueda=<?php echo urlencode($busqueda); ?>&filtro_lector=<?php echo $filtro_lector; ?>&filtro_fecha=<?php echo $filtro_fecha; ?>">
-                    <i class="fas fa-exclamation-triangle me-1" ></i> Vencidos
+                    <i class="fas fa-exclamation-triangle me-1"></i> Vencidos
                     <span class="badge bg-danger ms-1"><?php echo $estadisticas['vencidos']; ?></span>
                 </a>
             </li>
             <li class="nav-item" role="presentation">
-                <a class="nav-link <?php echo $pestaña_activa == 'todos' ? 'active' : ''; ?>" 
+                <a class="nav-link text-dark <?php echo $pestaña_activa == 'todos' ? 'active' : ''; ?>" 
                    href="?tab=todos&busqueda=<?php echo urlencode($busqueda); ?>&filtro_lector=<?php echo $filtro_lector; ?>&filtro_fecha=<?php echo $filtro_fecha; ?>">
                     <i class="fas fa-list me-1"></i> Todos
                     <span class="badge bg-secondary ms-1"><?php echo $estadisticas['total']; ?></span>
@@ -384,26 +411,20 @@ ob_start();
                                 </button>
                                 
                                 <?php if ($prestamo['devuelto'] == 0): ?>
-                               <button class="btn btn-sm btn-success marcar-devuelto" 
+                                <button class="btn btn-sm btn-success marcar-devuelto" 
                                     data-id="<?php echo $prestamo['id']; ?>"
                                     data-codigo="<?php echo htmlspecialchars($prestamo['codigo_interno']); ?>"
                                     title="Marcar como devuelto">
                                     <i class="fas fa-check"></i>
                                 </button>
-                                <button class="btn btn-sm btn-warning enviar-recordatorio" 
-                                        data-id="<?php echo $prestamo['id']; ?>"
-                                        data-email="<?php echo htmlspecialchars($prestamo['email']); ?>"
-                                        title="Enviar recordatorio">
-                                    <i class="fas fa-envelope"></i>
-                                </button>
                                 <?php endif; ?>
                                 
-                                <a href="imprimir_comprobante.php?id=<?php echo $prestamo['id']; ?>" 
-                                   class="btn btn-sm btn-secondary"
-                                   title="Imprimir comprobante"
-                                   target="_blank">
+                                <!-- COMENTE EL BOTON DE IMPRIMIR DE LA TABLA PARA HABILITARLO LUEGO SI LLEGASE A SERVIR
+                                 <button class="btn btn-sm btn-secondary imprimir-recibo" 
+                                        data-id="<?php echo $prestamo['id']; ?>"
+                                        title="Imprimir recibo">
                                     <i class="fas fa-print"></i>
-                                </a>
+                                </button> -->
                             </td>
                         </tr>
                         <?php endforeach; ?>
@@ -415,11 +436,7 @@ ob_start();
                 <div class="text-muted">
                     Mostrando <?php echo count($prestamos); ?> préstamos
                 </div>
-                <div>
-                    <button class="btn btn-outline-primary" id="btn-exportar">
-                        <i class="fas fa-file-export me-1"></i> Exportar
-                    </button>
-                </div>
+                <!-- Botón de exportar removido según solicitud -->
             </div>
         <?php endif; ?>
     </div>
@@ -443,7 +460,7 @@ ob_start();
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
                     <i class="fas fa-times me-1"></i> Cerrar
                 </button>
-                <button type="button" class="btn btn-primary" id="btn-imprimir-detalles">
+                <button type="button" class="btn btn-primary" id="btn-imprimir-modal">
                     <i class="fas fa-print me-1"></i> Imprimir
                 </button>
             </div>
@@ -451,242 +468,260 @@ ob_start();
     </div>
 </div>
 
-
-<!-- MODAL PARA ENVIAR RECORDATORIO -->
-<div class="modal fade" id="modalRecordatorio" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
+<!-- MODAL PARA IMPRIMIR RECIBO -->
+<div class="modal fade" id="modalImprimirRecibo" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
-            <div class="modal-header gradient-warning text-white">
+            <div class="modal-header gradient-info text-white">
                 <h5 class="modal-title">
-                    <i class="fas fa-envelope me-2"></i>
-                    Enviar Recordatorio
+                    <i class="fas fa-print me-2"></i>
+                    Vista Previa del Recibo
                 </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body" id="modalRecordatorioBody">
+            <div class="modal-body" id="modalImprimirReciboBody">
                 <!-- Se cargará con AJAX -->
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                    <i class="fas fa-times me-1"></i> Cancelar
+                    <i class="fas fa-times me-1"></i> Cerrar
                 </button>
-                <button type="button" class="btn btn-warning" id="btn-enviar-recordatorio">
-                    <i class="fas fa-paper-plane me-1"></i> Enviar Recordatorio
+                <button type="button" class="btn btn-primary" id="btn-confirmar-imprimir">
+                    <i class="fas fa-print me-1"></i> Imprimir Recibo
                 </button>
             </div>
         </div>
     </div>
 </div>
 
+
 <script>
-$(document).ready(function() {
-    // Variables globales
-    let prestamoActual = null;
-    const modalDetalles = new bootstrap.Modal(document.getElementById('modalDetalles'));
-    const modalRecordatorio = new bootstrap.Modal(document.getElementById('modalRecordatorio'));
-    
-    // ============================================
-    // VER DETALLES DEL PRÉSTAMO
-    // ============================================
-    $(document).on('click', '.ver-detalles', function() {
-        const prestamoId = $(this).data('id');
-        prestamoActual = prestamoId;
-        
-        // Mostrar loading
-        $('#modalDetallesBody').html(`
-            <div class="text-center py-4">
-                <div class="spinner-border text-primary mb-3" role="status">
-                    <span class="visually-hidden">Cargando...</span>
-                </div>
-                <h5>Cargando detalles...</h5>
-            </div>
-        `);
-        
-        modalDetalles.show();
-        
-        // Cargar detalles via AJAX
-        $.ajax({
-            url: 'obtener_detalles_prestamo.php',
-            method: 'GET',
-            data: { id: prestamoId },
-            dataType: 'html',
-            success: function(response) {
-                $('#modalDetallesBody').html(response);
-            },
-            error: function() {
+// Espera a que jQuery se cargue
+function waitForjQuery() {
+    if (typeof window.jQuery === 'undefined') {
+        console.log('Esperando jQuery...');
+        setTimeout(waitForjQuery, 100);
+    } else {
+        console.log('jQuery cargado, inicializando...');
+        $(document).ready(function() {
+            let prestamoActual = null;
+            const modalDetalles = new bootstrap.Modal(document.getElementById('modalDetalles'));
+            const modalImprimirRecibo = new bootstrap.Modal(document.getElementById('modalImprimirRecibo'));
+
+            // ============================================
+            // VER DETALLES DEL PRÉSTAMO
+            // ============================================
+            $(document).on('click', '.ver-detalles', function(e) {
+                e.preventDefault();
+                const prestamoId = $(this).data('id');
+                prestamoActual = prestamoId;
+                
+                console.log('Ver detalles del préstamo ID:', prestamoId);
+                
+                // Mostrar loading
                 $('#modalDetallesBody').html(`
-                    <div class="alert alert-danger">
-                        <i class="fas fa-exclamation-triangle me-2"></i>
-                        Error al cargar los detalles del préstamo.
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-primary mb-3" role="status">
+                            <span class="visually-hidden">Cargando...</span>
+                        </div>
+                        <h5>Cargando detalles...</h5>
                     </div>
                 `);
-            }
-        });
-    });
-    
-    // ============================================
-    // MARCAR COMO DEVUELTO - USANDO DEVOLUCIONES.PHP
-    // ============================================
-$(document).on('click', '.marcar-devuelto', function() {
-        const prestamoId = $(this).data('id');
-        const libroCodigo = $(this).data('codigo');
-    
-        // Confirmar redirección
-        if (confirm('¿Marcar este préstamo como devuelto?\n\nSerá redirigido a la página de devoluciones para confirmar.')) {
-        // Redirigir a devoluciones.php con el código
-        window.location.href = `devolucion_libro.php?codigo=${encodeURIComponent(libroCodigo)}&from=gestion`;
-        }
-});
-    
-    // ============================================
-    // ENVIAR RECORDATORIO
-    // ============================================
-    $(document).on('click', '.enviar-recordatorio', function() {
-        const prestamoId = $(this).data('id');
-        const email = $(this).data('email');
-        prestamoActual = prestamoId;
-        
-        // Mostrar formulario para recordatorio
-        $('#modalRecordatorioBody').html(`
-            <div class="mb-3">
-                <label for="asunto-recordatorio" class="form-label">Asunto</label>
-                <input type="text" class="form-control" id="asunto-recordatorio" 
-                       value="Recordatorio de Devolución - Biblioteca Elim Torino">
-            </div>
-            <div class="mb-3">
-                <label for="mensaje-recordatorio" class="form-label">Mensaje</label>
-                <textarea class="form-control" id="mensaje-recordatorio" rows="4">
-Estimado/a,
-
-Le recordamos que tiene un libro pendiente de devolución en la Biblioteca Elim Torino.
-
-Fecha límite de devolución: [FECHA_DEVOLUCION]
-
-Por favor, acérquese a la biblioteca para realizar la devolución.
-
-Atentamente,
-Biblioteca Elim Torino
-                </textarea>
-            </div>
-            <div class="alert alert-info">
-                <i class="fas fa-info-circle me-2"></i>
-                El recordatorio se enviará a: <strong>${email}</strong>
-            </div>
-        `);
-        
-        modalRecordatorio.show();
-    });
-    
-    // Enviar recordatorio
-    $('#btn-enviar-recordatorio').click(function() {
-        const btn = $(this);
-        const asunto = $('#asunto-recordatorio').val();
-        const mensaje = $('#mensaje-recordatorio').val();
-        
-        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Enviando...');
-        
-        $.ajax({
-            url: 'enviar_recordatorio.php',
-            method: 'POST',
-            data: { 
-                id: prestamoActual,
-                asunto: asunto,
-                mensaje: mensaje
-            },
-            dataType: 'json',
-            success: function(response) {
-                if (response.success) {
-                    $('#modalRecordatorioBody').html(`
-                        <div class="text-center py-4">
-                            <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
-                            <h4 class="text-success">¡Recordatorio Enviado!</h4>
-                            <p>El recordatorio ha sido enviado correctamente.</p>
-                        </div>
-                    `);
-                    
-                    // Ocultar botones
-                    $('.modal-footer').hide();
-                    
-                    // Cerrar después de 2 segundos
-                    setTimeout(function() {
-                        modalRecordatorio.hide();
-                    }, 2000);
-                } else {
-                    $('#modalRecordatorioBody').html(`
-                        <div class="alert alert-danger">
-                            <i class="fas fa-exclamation-triangle me-2"></i>
-                            Error: ${response.message || 'No se pudo enviar el recordatorio'}
-                        </div>
-                    `);
-                    btn.prop('disabled', false).html('<i class="fas fa-paper-plane me-1"></i> Enviar Recordatorio');
-                }
-            },
-            error: function() {
-                $('#modalRecordatorioBody').html(`
-                    <div class="alert alert-danger">
-                        <i class="fas fa-times-circle me-2"></i>
-                        Error de conexión con el servidor.
-                    </div>
-                `);
-                btn.prop('disabled', false).html('<i class="fas fa-paper-plane me-1"></i> Enviar Recordatorio');
-            }
-        });
-    });
-    
-    // ============================================
-    // FUNCIONES AUXILIARES
-    // ============================================
-    
-    // Limpiar búsqueda
-    $('#btn-limpiar-busqueda').click(function() {
-        $('#busqueda').val('');
-        window.location.href = 'gestion_prestamo.php?tab=<?php echo $pestaña_activa; ?>';
-    });
-    
-    // Exportar datos
-    $('#btn-exportar').click(function() {
-        const tab = '<?php echo $pestaña_activa; ?>';
-        const busqueda = '<?php echo urlencode($busqueda); ?>';
-        
-        window.open(`exportar_prestamos.php?tab=${tab}&busqueda=${busqueda}`, '_blank');
-    });
-    
-    // Imprimir desde modal
-    $('#btn-imprimir-detalles').click(function() {
-        window.print();
-    });
-    
-    // Auto-refrescar cada 60 segundos
-    setInterval(function() {
-        // Solo actualizar si no hay modales abiertos
-        if (!$('.modal.show').length) {
-            $.ajax({
-                url: 'actualizar_estadisticas.php',
-                method: 'GET',
-                dataType: 'json',
-                success: function(data) {
-                    $('#contador-activos').text(data.activos || 0);
-                    $('#contador-por-vencer').text(data.por_vencer || 0);
-                    $('#contador-vencidos').text(data.vencidos || 0);
+                
+                modalDetalles.show();
+                
+                // Cargar detalles via AJAX
+                $.ajax({
+                    url: 'obtener_detalles_prestamo.php',
+                    method: 'GET',
+                    data: { 
+                        id: prestamoId,
+                        _t: new Date().getTime()
+                    },
+                    dataType: 'html',
+                    success: function(response) {
+                        $('#modalDetallesBody').html(response);
+                    },
+                    error: function(xhr, status, error) {
+                        console.error('Error al cargar detalles:', error);
+                        $('#modalDetallesBody').html(`
+                            <div class="alert alert-danger">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                Error al cargar los detalles del préstamo.<br>
+                                <small>${error}</small>
+                            </div>
+                        `);
+                    }
+                });
+            });
+            
+            // ============================================
+            // MARCAR COMO DEVUELTO - Redirección directa
+            // ============================================
+            $(document).on('click', '.marcar-devuelto', function(e) {
+                e.preventDefault();
+                const prestamoId = $(this).data('id');
+                const libroCodigo = $(this).data('codigo');
+                
+                console.log('Marcar como devuelto - ID:', prestamoId, 'Código:', libroCodigo);
+                
+                // Confirmar redirección
+                if (confirm('¿Marcar este préstamo como devuelto?\n\nSerá redirigido a la página de devoluciones para confirmar.')) {
+                    // Redirigir a devoluciones.php con el código
+                    window.location.href = `devolucion_libro.php?codigo=${encodeURIComponent(libroCodigo)}&from=gestion`;
                 }
             });
-        }
-    }, 60000);
-    
-    // Inicializar DataTables si hay muchos registros
-    if ($('#tablaPrestamos tbody tr').length > 10) {
-        $('#tablaPrestamos').DataTable({
-            language: {
-                url: '//cdn.datatables.net/plug-ins/1.13.4/i18n/es-ES.json'
-            },
-            pageLength: 25,
-            order: [[0, 'desc']],
-            responsive: true
-        });
-    }
-});
-</script>
+            
+            // ============================================
+            // IMPRIMIR RECIBO - Nueva funcionalidad
+            // ============================================
+            $(document).on('click', '.imprimir-recibo', function(e) {
+                e.preventDefault();
+                const prestamoId = $(this).data('id');
+                prestamoActual = prestamoId;
+                
+                console.log('Imprimir recibo del préstamo ID:', prestamoId);
+                
+                // Mostrar loading
+                $('#modalImprimirReciboBody').html(`
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-primary mb-3" role="status">
+                            <span class="visually-hidden">Cargando...</span>
+                        </div>
+                        <h5>Cargando recibo...</h5>
+                    </div>
+                `);
+                
+                modalImprimirRecibo.show();
+                
+                // Cargar recibo via AJAX
+                $.ajax({
+                    url: 'imprimir_recibo_prestamo.php',
+                    method: 'GET',
+                    data: { 
+                        id: prestamoId,
+                        _t: new Date().getTime()
+                    },
+                    dataType: 'html',
+                    success: function(response) {
+                        $('#modalImprimirReciboBody').html(response);
+                    },
+                    error: function(xhr, status, error) {
+                        console.error('Error al cargar recibo:', error);
+                        $('#modalImprimirReciboBody').html(`
+                            <div class="alert alert-danger">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                Error al cargar el recibo del préstamo.<br>
+                                <small>${error}</small>
+                            </div>
+                        `);
+                    }
+                });
+            });
+            
+            // ============================================
+            // CONFIRMAR IMPRESIÓN DEL RECIBO
+            // ============================================
+            $('#btn-confirmar-imprimir').click(function() {
+                // Crear ventana para impresión
+                const contenido = $('#modalImprimirReciboBody').html();
+                const ventanaImpresion = window.open('', '_blank');
+                
+                ventanaImpresion.document.write(`
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <title>Recibo de Préstamo</title>
+                        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+                        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+                        <style>
+                            @media print {
+                                body { margin: 0; padding: 0; }
+                                .no-print { display: none !important; }
+                                .print-only { display: block !important; }
+                                .container { max-width: 100% !important; }
+                                .card { border: 1px solid #000 !important; }
+                                .text-center { text-align: center !important; }
+                                .mt-3 { margin-top: 1rem !important; }
+                                .mb-3 { margin-bottom: 1rem !important; }
+                            }
+                            body { font-family: Arial, sans-serif; }
+                            .recibo-header { 
+                                border-bottom: 2px solid #000; 
+                                padding-bottom: 10px;
+                                margin-bottom: 20px;
+                            }
+                            .recibo-footer { 
+                                border-top: 2px solid #000; 
+                                padding-top: 10px;
+                                margin-top: 20px;
+                                font-size: 12px;
+                            }
+                            .firma { 
+                                margin-top: 50px;
+                                border-top: 1px solid #000;
+                                width: 200px;
+                                padding-top: 10px;
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="container mt-3">
+                            ${contenido}
+                        </div>
+                        <div class="text-center no-print mt-3">
+                            <button onclick="window.print()" class="btn btn-primary">
+                                <i class="fas fa-print me-1"></i> Imprimir
+                            </button>
+                            <button onclick="window.close()" class="btn btn-secondary ms-2">
+                                <i class="fas fa-times me-1"></i> Cerrar
+                            </button>
+                        </div>
+                    </body>
+                    </html>
+                `);
+                
+                ventanaImpresion.document.close();
+                
+                // Cerrar modal después de abrir ventana de impresión
+                setTimeout(() => {
+                    modalImprimirRecibo.hide();
+                }, 500);
+            });
+            
+            // ============================================
+            // FUNCIONES AUXILIARES
+            // ============================================
+            
+            // Limpiar búsqueda
+            $('#btn-limpiar-busqueda').click(function() {
+                $('#busqueda').val('');
+                window.location.href = 'gestion_prestamo.php?tab=<?php echo $pestaña_activa; ?>';
+            });
+            
+            // Imprimir desde modal de detalles
+            $('#btn-imprimir-modal').click(function() {
+                window.print();
+            });
+            
+            // Inicializar DataTables si hay muchos registros
+            if ($('#tablaPrestamos tbody tr').length > 10) {
+                $('#tablaPrestamos').DataTable({
+                    language: {
+                        url: '//cdn.datatables.net/plug-ins/1.13.4/i18n/es-ES.json'
+                    },
+                    pageLength: 25,
+                    order: [[0, 'desc']],
+                    responsive: true
+                });
+            }
+        }); // Cierra $(document).ready()
+    } // Cierra else
+} // Cierra waitForjQuery()
 
+// Iniciar
+waitForjQuery();
+</script>
 <?php
 $contenido = ob_get_clean();
 include 'layout.php';
