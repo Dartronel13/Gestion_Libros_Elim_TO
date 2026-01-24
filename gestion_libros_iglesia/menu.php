@@ -246,10 +246,10 @@ $titulo = '📚 Inicio - Sistema de Biblioteca Iglesia';
                 -- PRÉSTAMOS ACTIVOS
                 (SELECT COUNT(*) FROM prestamos WHERE devuelto = 0) as prestamos_activos,
                 
-                -- PRÉSTAMOS POR VENCER (5 días o menos)
+                -- PRÉSTAMOS POR VENCER (3 días o menos)
                 (SELECT COUNT(*) FROM prestamos 
                  WHERE devuelto = 0 
-                 AND fecha_devolucion BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 5 DAY)) as prestamos_por_vencer,
+                 AND fecha_devolucion BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 3 DAY)) as prestamos_por_vencer,
                 
                 -- PRÉSTAMOS VENCIDOS
                 (SELECT COUNT(*) FROM prestamos 
@@ -291,7 +291,7 @@ $titulo = '📚 Inicio - Sistema de Biblioteca Iglesia';
                         <i class="fas fa-clock"></i>
                     </div>
                     <div class="stats-number"><?= $estadisticas['prestamos_por_vencer'] ?? 0 ?></div>
-                    <div class="stats-label">Prestamos por Vencer (≤5 días)</div>
+                    <div class="stats-label">Prestamos por Vencer (≤3 días)</div>
                 </div>
             </div>
             
@@ -446,7 +446,7 @@ $titulo = '📚 Inicio - Sistema de Biblioteca Iglesia';
                             LEFT JOIN lectores lec ON p.id_lector = lec.id
                             WHERE p.devuelto = 0
                             ORDER BY p.fecha_prestamo DESC
-                            LIMIT 5
+                            LIMIT 3
                         ";
                         
                         $result_prestamos = mysqli_query($link, $query_prestamos);
@@ -474,7 +474,7 @@ $titulo = '📚 Inicio - Sistema de Biblioteca Iglesia';
                                         if ($dias_restantes < 0) {
                                             $estado_clase = 'badge bg-danger';
                                             $estado_texto = 'VENCIDO';
-                                        } elseif ($dias_restantes <= 5) {
+                                        } elseif ($dias_restantes <= 3) {
                                             $estado_clase = 'badge bg-warning text-dark';
                                             $estado_texto = 'POR VENCER';
                                         } else {

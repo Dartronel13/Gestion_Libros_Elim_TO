@@ -1,11 +1,11 @@
 -- phpMyAdmin SQL Dump
--- version 5.1.2
+-- version 5.2.1
 -- https://www.phpmyadmin.net/
 --
--- Servidor: localhost:3306
--- Tiempo de generación: 24-01-2026 a las 12:12:24
--- Versión del servidor: 5.7.24
--- Versión de PHP: 8.3.1
+-- Host: localhost:8889
+-- Creato il: Gen 24, 2026 alle 22:14
+-- Versione del server: 8.0.40
+-- Versione PHP: 8.3.14
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
@@ -18,22 +18,22 @@ SET time_zone = "+00:00";
 /*!40101 SET NAMES utf8mb4 */;
 
 --
--- Base de datos: `gestion_libros_elim_torino`
+-- Database: `gestion_libros_elim_torino`
 --
 
 -- --------------------------------------------------------
 
 --
--- Estructura de tabla para la tabla `categorias`
+-- Struttura della tabella `categorias`
 --
 
 CREATE TABLE `categorias` (
-  `id` int(11) NOT NULL,
+  `id` int NOT NULL,
   `nombre` varchar(100) NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
 
 --
--- Volcado de datos para la tabla `categorias`
+-- Dump dei dati per la tabella `categorias`
 --
 
 INSERT INTO `categorias` (`id`, `nombre`) VALUES
@@ -46,82 +46,83 @@ INSERT INTO `categorias` (`id`, `nombre`) VALUES
 -- --------------------------------------------------------
 
 --
--- Estructura de tabla para la tabla `lectores`
+-- Struttura della tabella `lectores`
 --
 
 CREATE TABLE `lectores` (
-  `id` int(11) NOT NULL,
+  `id` int NOT NULL,
   `nombre` varchar(100) NOT NULL,
   `apellido` varchar(100) NOT NULL,
   `email` varchar(100) NOT NULL,
   `direccion` varchar(100) NOT NULL,
   `telefono` varchar(20) DEFAULT NULL,
   `codigo_fiscal` varchar(100) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
 
 -- --------------------------------------------------------
 
 --
--- Estructura de tabla para la tabla `libros`
+-- Struttura della tabella `libros`
 --
 
 CREATE TABLE `libros` (
-  `id` int(11) NOT NULL,
+  `id` int NOT NULL,
   `codigo_interno` varchar(30) NOT NULL,
   `titulo` varchar(200) NOT NULL,
   `autor` varchar(150) NOT NULL,
-  `año_publicacion` int(11) DEFAULT NULL,
+  `año_publicacion` int DEFAULT NULL,
   `isbn` varchar(20) DEFAULT NULL,
-  `stock` int(11) DEFAULT '1',
-  `fecha_creacion` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+  `stock` int DEFAULT '1',
+  `fecha_creacion` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `activo` tinyint DEFAULT '1'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
 
 -- --------------------------------------------------------
 
 --
--- Estructura de tabla para la tabla `libro_categoria`
+-- Struttura della tabella `libro_categoria`
 --
 
 CREATE TABLE `libro_categoria` (
-  `id_libro` int(11) NOT NULL,
-  `id_categoria` int(11) NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+  `id_libro` int NOT NULL,
+  `id_categoria` int NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
 
 -- --------------------------------------------------------
 
 --
--- Estructura de tabla para la tabla `prestamos`
+-- Struttura della tabella `prestamos`
 --
 
 CREATE TABLE `prestamos` (
-  `id` int(11) NOT NULL,
-  `id_libro` int(11) NOT NULL,
+  `id` int NOT NULL,
+  `id_libro` int NOT NULL,
   `fecha_prestamo` date NOT NULL,
   `fecha_devolucion` date DEFAULT NULL,
   `devuelto` tinyint(1) DEFAULT '0',
-  `id_lector` int(11) NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+  `id_lector` int NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
 
 --
--- Índices para tablas volcadas
+-- Indici per le tabelle scaricate
 --
 
 --
--- Indices de la tabla `categorias`
+-- Indici per le tabelle `categorias`
 --
 ALTER TABLE `categorias`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `nombre` (`nombre`);
 
 --
--- Indices de la tabla `lectores`
+-- Indici per le tabelle `lectores`
 --
 ALTER TABLE `lectores`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `email` (`email`);
 
 --
--- Indices de la tabla `libros`
+-- Indici per le tabelle `libros`
 --
 ALTER TABLE `libros`
   ADD PRIMARY KEY (`id`),
@@ -129,14 +130,14 @@ ALTER TABLE `libros`
   ADD UNIQUE KEY `isbn` (`isbn`);
 
 --
--- Indices de la tabla `libro_categoria`
+-- Indici per le tabelle `libro_categoria`
 --
 ALTER TABLE `libro_categoria`
   ADD PRIMARY KEY (`id_libro`,`id_categoria`),
   ADD KEY `id_categoria` (`id_categoria`);
 
 --
--- Indices de la tabla `prestamos`
+-- Indici per le tabelle `prestamos`
 --
 ALTER TABLE `prestamos`
   ADD PRIMARY KEY (`id`),
@@ -144,46 +145,46 @@ ALTER TABLE `prestamos`
   ADD KEY `prestamos_ibfk_2` (`id_lector`);
 
 --
--- AUTO_INCREMENT de las tablas volcadas
+-- AUTO_INCREMENT per le tabelle scaricate
 --
 
 --
--- AUTO_INCREMENT de la tabla `categorias`
+-- AUTO_INCREMENT per la tabella `categorias`
 --
 ALTER TABLE `categorias`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
--- AUTO_INCREMENT de la tabla `lectores`
+-- AUTO_INCREMENT per la tabella `lectores`
 --
 ALTER TABLE `lectores`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT;
 
 --
--- AUTO_INCREMENT de la tabla `libros`
+-- AUTO_INCREMENT per la tabella `libros`
 --
 ALTER TABLE `libros`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT;
 
 --
--- AUTO_INCREMENT de la tabla `prestamos`
+-- AUTO_INCREMENT per la tabella `prestamos`
 --
 ALTER TABLE `prestamos`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT;
 
 --
--- Restricciones para tablas volcadas
+-- Limiti per le tabelle scaricate
 --
 
 --
--- Filtros para la tabla `libro_categoria`
+-- Limiti per la tabella `libro_categoria`
 --
 ALTER TABLE `libro_categoria`
   ADD CONSTRAINT `libro_categoria_ibfk_1` FOREIGN KEY (`id_libro`) REFERENCES `libros` (`id`),
   ADD CONSTRAINT `libro_categoria_ibfk_2` FOREIGN KEY (`id_categoria`) REFERENCES `categorias` (`id`);
 
 --
--- Filtros para la tabla `prestamos`
+-- Limiti per la tabella `prestamos`
 --
 ALTER TABLE `prestamos`
   ADD CONSTRAINT `prestamos_ibfk_1` FOREIGN KEY (`id_libro`) REFERENCES `libros` (`id`),

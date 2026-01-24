@@ -10,7 +10,32 @@ $icono_titulo = 'fas fa-book-open';
 $mensaje_exito = '';
 $mensaje_error = '';
 
-// Obtener categorías para el formulario
+// Procesar eliminación de libro
+if (isset($_GET['eliminar']) && is_numeric($_GET['eliminar'])) {
+    $id_eliminar = intval($_GET['eliminar']);
+    
+    // Verificar si el libro tiene préstamos activos
+    $sql_check_prestamos = "SELECT COUNT(*) as total FROM prestamos WHERE id_libro = ? AND devuelto = 0";
+    $stmt_check = $db->query($sql_check_prestamos, [$id_eliminar]);
+    $result_check = mysqli_stmt_get_result($stmt_check);
+    $row_check = mysqli_fetch_assoc($result_check);
+    
+    if ($row_check['total'] > 0) {
+        $mensaje_error = "No se puede eliminar el libro porque tiene préstamos activos.";
+    } else {
+        // Eliminación lógica (actualizar activo = 0)
+        $sql_eliminar = "UPDATE libros SET activo = 0 WHERE id = ?";
+        $stmt_eliminar = $db->query($sql_eliminar, [$id_eliminar]);
+        
+        if ($stmt_eliminar && mysqli_stmt_affected_rows($stmt_eliminar) > 0) {
+            $mensaje_exito = "Libro eliminado correctamente (archivado).";
+        } else {
+            $mensaje_error = "Error al eliminar el libro.";
+        }
+    }
+}
+
+// Obtener categorías para filtros
 $sql_categorias = "SELECT id, nombre FROM categorias ORDER BY nombre";
 $result_categorias = mysqli_query($link, $sql_categorias);
 $categorias = [];
@@ -18,77 +43,92 @@ while ($row = mysqli_fetch_assoc($result_categorias)) {
     $categorias[] = $row;
 }
 
-// Procesar agregar libro
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['agregar_libro'])) {
-    $codigo_interno = trim($_POST['codigo_interno'] ?? '');
-    $titulo = trim($_POST['titulo'] ?? '');
-    $autor = trim($_POST['autor'] ?? '');
-    $ano_publicacion = $_POST['ano_publicacion'] ?? null;
-    $isbn = trim($_POST['isbn'] ?? '');
-    $stock = intval($_POST['stock'] ?? 1);
-    $categorias_seleccionadas = $_POST['categorias'] ?? [];
-    
-    // Validaciones básicas
-    if (empty($codigo_interno) || empty($titulo) || empty($autor)) {
-        $mensaje_error = "Código interno, título y autor son obligatorios.";
-    } else {
-        // Verificar si el código interno ya existe
-        $sql_check = "SELECT id FROM libros WHERE codigo_interno = ?";
-        $stmt_check = $db->query($sql_check, [$codigo_interno]);
-        if ($stmt_check && mysqli_stmt_get_result($stmt_check)->num_rows > 0) {
-            $mensaje_error = "El código interno '$codigo_interno' ya existe en el catálogo.";
-        } else {
-            // Insertar el libro
-            $sql_insert = "INSERT INTO libros (codigo_interno, titulo, autor, año_publicacion, isbn, stock) 
-                          VALUES (?, ?, ?, ?, ?, ?)";
-            $stmt_insert = $db->query($sql_insert, [
-                $codigo_interno, $titulo, $autor, $ano_publicacion, $isbn, $stock
-            ]);
-            
-            if ($stmt_insert) {
-                $id_libro = mysqli_insert_id($link);
-                $mensaje_exito = "Libro '$titulo' agregado exitosamente al catálogo.";
-                
-                // Asignar categorías
-                if (!empty($categorias_seleccionadas)) {
-                    foreach ($categorias_seleccionadas as $id_categoria) {
-                        $sql_cat = "INSERT INTO libro_categoria (id_libro, id_categoria) VALUES (?, ?)";
-                        $db->query($sql_cat, [$id_libro, $id_categoria]);
-                    }
-                }
-                
-                // Limpiar formulario
-                $_POST = [];
-            } else {
-                $mensaje_error = "Error al agregar el libro a la base de datos.";
-            }
-        }
-    }
+// Parámetros de búsqueda y filtros
+$busqueda = trim($_GET['busqueda'] ?? '');
+$categoria_filtro = $_GET['categoria'] ?? '';
+$stock_filtro = $_GET['stock'] ?? '';
+$pagina = max(1, intval($_GET['pagina'] ?? 1));
+$por_pagina = 20; // Libros por página
+
+// Construir consulta base con filtros
+$condiciones = ["l.activo = 1"];
+$parametros = [];
+$tipos = "";
+
+if (!empty($busqueda)) {
+    $condiciones[] = "(l.titulo LIKE ? OR l.autor LIKE ? OR l.codigo_interno LIKE ? OR l.isbn LIKE ?)";
+    $parametros = array_merge($parametros, 
+        ["%$busqueda%", "%$busqueda%", "%$busqueda%", "%$busqueda%"]);
+    $tipos .= "ssss";
 }
 
-// Obtener todos los libros con sus categorías
-$sql_libros = "SELECT l.*, GROUP_CONCAT(c.nombre SEPARATOR ', ') as categorias_nombres
+if (!empty($categoria_filtro) && is_numeric($categoria_filtro)) {
+    $condiciones[] = "lc.id_categoria = ?";
+    $parametros[] = $categoria_filtro;
+    $tipos .= "i";
+}
+
+if ($stock_filtro === 'disponible') {
+    $condiciones[] = "l.stock > 0";
+} elseif ($stock_filtro === 'agotado') {
+    $condiciones[] = "l.stock = 0";
+}
+
+$where_clause = !empty($condiciones) ? "WHERE " . implode(" AND ", $condiciones) : "";
+
+// Contar total de libros para paginación
+$sql_count = "SELECT COUNT(DISTINCT l.id) as total 
+              FROM libros l
+              LEFT JOIN libro_categoria lc ON l.id = lc.id_libro
+              $where_clause";
+              
+if (!empty($parametros)) {
+    $stmt_count = $db->query($sql_count, $parametros);
+    $result_count = mysqli_stmt_get_result($stmt_count);
+} else {
+    $result_count = mysqli_query($link, $sql_count);
+}
+$row_count = mysqli_fetch_assoc($result_count);
+$total_libros = $row_count['total'];
+$total_paginas = ceil($total_libros / $por_pagina);
+$offset = ($pagina - 1) * $por_pagina;
+
+// Obtener libros con filtros y paginación
+$sql_libros = "SELECT l.*, GROUP_CONCAT(c.nombre SEPARATOR ', ') as categorias_nombres,
+               GROUP_CONCAT(c.id SEPARATOR ',') as categorias_ids
                FROM libros l
                LEFT JOIN libro_categoria lc ON l.id = lc.id_libro
                LEFT JOIN categorias c ON lc.id_categoria = c.id
+               $where_clause
                GROUP BY l.id
-               ORDER BY l.titulo ASC";
-$result_libros = mysqli_query($link, $sql_libros);
+               ORDER BY l.titulo ASC
+               LIMIT ? OFFSET ?";
+               
+$parametros_paginados = array_merge($parametros, [$por_pagina, $offset]);
+$tipos_paginados = $tipos . "ii";
+
+$stmt_libros = $db->query($sql_libros, $parametros_paginados);
+$result_libros = mysqli_stmt_get_result($stmt_libros);
 $libros = [];
 while ($row = mysqli_fetch_assoc($result_libros)) {
     $libros[] = $row;
 }
 
 // Estadísticas
-$total_libros = count($libros);
-$total_stock = array_sum(array_column($libros, 'stock'));
+$sql_stats = "SELECT 
+               SUM(stock) as total_stock,
+               COUNT(CASE WHEN stock > 0 THEN 1 END) as libros_disponibles,
+               COUNT(CASE WHEN stock = 0 THEN 1 END) as libros_agotados
+               FROM libros WHERE activo = 1";
+$result_stats = mysqli_query($link, $sql_stats);
+$stats = mysqli_fetch_assoc($result_stats);
 
 ob_start();
 ?>
 
 <!-- ESTADÍSTICAS RÁPIDAS -->
 <div class="row mb-4">
-    <div class="col-md-6">
+    <div class="col-md-4">
         <div class="card border-left-primary shadow h-100 py-2">
             <div class="card-body">
                 <div class="row no-gutters align-items-center">
@@ -105,17 +145,34 @@ ob_start();
         </div>
     </div>
     
-    <div class="col-md-6">
+    <div class="col-md-4">
         <div class="card border-left-success shadow h-100 py-2">
             <div class="card-body">
                 <div class="row no-gutters align-items-center">
                     <div class="col mr-2">
                         <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
-                            Total en Stock</div>
-                        <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $total_stock; ?></div>
+                            Disponibles</div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $stats['libros_disponibles']; ?></div>
                     </div>
                     <div class="col-auto">
-                        <i class="fas fa-cubes fa-2x text-gray-300"></i>
+                        <i class="fas fa-check-circle fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card border-left-warning shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                            Agotados</div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $stats['libros_agotados']; ?></div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-exclamation-circle fa-2x text-gray-300"></i>
                     </div>
                 </div>
             </div>
@@ -123,27 +180,89 @@ ob_start();
     </div>
 </div>
 
-<!-- PESTAÑAS CATÁLOGO / AGREGAR -->
-<ul class="nav nav-tabs mb-4" id="catalogoTab" role="tablist">
-    <li class="nav-item" role="presentation">
-        <button class="nav-link active" id="ver-tab" data-bs-toggle="tab" data-bs-target="#ver" type="button">
-            <i class="fas fa-list me-1"></i> Ver Catálogo
-        </button>
-    </li>
-    <li class="nav-item" role="presentation">
-        <button class="nav-link" id="agregar-tab" data-bs-toggle="tab" data-bs-target="#agregar" type="button">
-            <i class="fas fa-plus me-1"></i> Agregar Libro
-        </button>
-    </li>
-</ul>
+<!-- BARRA DE BÚSQUEDA Y FILTROS -->
+<div class="card mb-4">
+    <div class="card-header bg-light">
+        <div class="row">
+            <div class="col-md-8">
+                <form method="GET" action="" class="row g-2">
+                    <div class="col-md-5">
+                        <div class="input-group">
+                            <input type="text" class="form-control" name="busqueda" 
+                                   value="<?php echo htmlspecialchars($busqueda); ?>" 
+                                   placeholder="Buscar por título, autor, código o ISBN">
+                            <button class="btn btn-outline-primary" type="submit">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <select name="categoria" class="form-select">
+                            <option value="">Todas las categorías</option>
+                            <?php foreach ($categorias as $cat): ?>
+                                <option value="<?php echo $cat['id']; ?>" 
+                                    <?php echo ($categoria_filtro == $cat['id']) ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($cat['nombre']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <select name="stock" class="form-select">
+                            <option value="">Todo el stock</option>
+                            <option value="disponible" <?php echo ($stock_filtro == 'disponible') ? 'selected' : ''; ?>>Disponible</option>
+                            <option value="agotado" <?php echo ($stock_filtro == 'agotado') ? 'selected' : ''; ?>>Agotado</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-filter me-1"></i> Filtrar
+                        </button>
+                    </div>
+                </form>
+            </div>
+            <div class="col-md-4 text-end">
+                <a href="agregar_libro.php" class="btn btn-success me-2">
+                    <i class="fas fa-plus me-1"></i> Nuevo Libro
+                </a>
+                <a href="exportar_libros.php?<?php echo http_build_query($_GET); ?>" 
+                   class="btn btn-outline-secondary">
+                    <i class="fas fa-download me-1"></i> Exportar
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
 
-<div class="tab-content" id="catalogoTabContent">
-    <!-- PESTAÑA 1: VER CATÁLOGO -->
-    <div class="tab-pane fade show active" id="ver" role="tabpanel">
+<!-- TABLA DE LIBROS -->
+<div class="card">
+    <div class="card-header gradient-book text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">
+            <i class="fas fa-list me-2"></i>
+            Catálogo de Libros
+            <?php if (!empty($busqueda)): ?>
+                <small class="ms-2">(Resultados para: "<?php echo htmlspecialchars($busqueda); ?>")</small>
+            <?php endif; ?>
+        </h5>
+        <div class="text-light">
+            Mostrando <?php echo count($libros); ?> de <?php echo $total_libros; ?> libros
+        </div>
+    </div>
+    
+    <div class="card-body">
         <?php if (empty($libros)): ?>
-            <div class="alert alert-info">
-                <i class="fas fa-info-circle me-2"></i>
-                El catálogo está vacío. Agrega tu primer libro usando la pestaña "Agregar Libro".
+            <div class="alert alert-info text-center py-4">
+                <i class="fas fa-info-circle fa-2x mb-3"></i>
+                <h5>No se encontraron libros</h5>
+                <p class="mb-0">
+                    <?php if (!empty($busqueda) || !empty($categoria_filtro) || !empty($stock_filtro)): ?>
+                        Intenta con otros criterios de búsqueda o 
+                        <a href="catalogo_libros.php" class="alert-link">ver todos los libros</a>.
+                    <?php else: ?>
+                        El catálogo está vacío. 
+                        <a href="agregar_libro.php" class="alert-link">Agrega tu primer libro</a>.
+                    <?php endif; ?>
+                </p>
             </div>
         <?php else: ?>
             <div class="table-responsive">
@@ -151,32 +270,62 @@ ob_start();
                     <thead>
                         <tr>
                             <th width="10%">Código</th>
-                            <th width="30%">Título</th>
-                            <th width="20%">Autor</th>
+                            <th width="25%">Título</th>
+                            <th width="15%">Autor</th>
                             <th width="10%">Año</th>
                             <th width="10%">Stock</th>
                             <th width="20%">Categorías</th>
+                            <th width="10%">Acciones</th>
+                                                    <td>
+    <div class="btn-group btn-group-sm" role="group">
+        <a href="editar_libro.php?id=<?php echo $libro['id']; ?>" 
+           class="btn btn-outline-primary" title="Editar">
+            <i class="fas fa-edit"></i>
+        </a>
+        <button type="button" 
+                class="btn btn-outline-info" 
+                title="Generar Etiqueta"
+                onclick="generarEtiquetaIndividual('<?php echo htmlspecialchars(addslashes($libro['codigo_interno'])); ?>', 
+                                                   '<?php echo htmlspecialchars(addslashes($libro['titulo'])); ?>',
+                                                   '<?php echo htmlspecialchars(addslashes($libro['autor'])); ?>')">
+            <i class="fas fa-barcode"></i>
+        </button>
+        <button type="button" 
+                class="btn btn-outline-danger" 
+                title="Eliminar"
+                onclick="confirmarEliminacion(<?php echo $libro['id']; ?>, '<?php echo htmlspecialchars(addslashes($libro['titulo'])); ?>')">
+            <i class="fas fa-trash"></i>
+        </button>
+    </div>
+</td>
+                            
                         </tr>
+
                     </thead>
                     <tbody>
                         <?php foreach ($libros as $libro): 
-                            $clase_stock = $libro['stock'] > 0 ? 'success' : ($libro['stock'] == 0 ? 'warning' : 'danger');
+                            $clase_stock = $libro['stock'] > 0 ? 'success' : 'warning';
                         ?>
                         <tr>
                             <td>
-                                <code><?php echo htmlspecialchars($libro['codigo_interno']); ?></code>
+                                <div class="d-flex align-items-center">
+                                    <code class="me-2"><?php echo htmlspecialchars($libro['codigo_interno']); ?></code>
+                                    <?php if (!empty($libro['isbn'])): ?>
+                                        <i class="fas fa-barcode text-muted" title="ISBN: <?php echo htmlspecialchars($libro['isbn']); ?>"></i>
+                                    <?php endif; ?>
+                                </div>
                             </td>
                             <td>
-                                <strong><?php echo htmlspecialchars($libro['titulo']); ?></strong>
+                                <strong class="d-block"><?php echo htmlspecialchars($libro['titulo']); ?></strong>
                                 <?php if (!empty($libro['isbn'])): ?>
-                                    <br><small class="text-muted">ISBN: <?php echo htmlspecialchars($libro['isbn']); ?></small>
+                                    <small class="text-muted d-block">ISBN: <?php echo htmlspecialchars($libro['isbn']); ?></small>
                                 <?php endif; ?>
                             </td>
                             <td><?php echo htmlspecialchars($libro['autor']); ?></td>
                             <td><?php echo htmlspecialchars($libro['año_publicacion'] ?? '-'); ?></td>
                             <td>
                                 <span class="badge bg-<?php echo $clase_stock; ?>">
-                                    <?php echo $libro['stock']; ?> disponible(s)
+                                    <?php echo $libro['stock']; ?> copia(s)
                                 </span>
                             </td>
                             <td>
@@ -186,271 +335,161 @@ ob_start();
                                     <span class="text-muted">Sin categorías</span>
                                 <?php endif; ?>
                             </td>
+                            <td>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <a href="editar_libro.php?id=<?php echo $libro['id']; ?>" 
+                                       class="btn btn-outline-primary" title="Editar">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <button type="button" 
+                                            class="btn btn-outline-danger" 
+                                            title="Eliminar"
+                                            onclick="confirmarEliminacion(<?php echo $libro['id']; ?>, '<?php echo htmlspecialchars(addslashes($libro['titulo'])); ?>')">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
                         </tr>
                         <?php endforeach; ?>
                     </tbody>
                 </table>
             </div>
             
+            <!-- PAGINACIÓN -->
+            <?php if ($total_paginas > 1): ?>
+            <nav aria-label="Paginación">
+                <ul class="pagination justify-content-center">
+                    <li class="page-item <?php echo ($pagina <= 1) ? 'disabled' : ''; ?>">
+                        <a class="page-link" 
+                           href="?<?php echo http_build_query(array_merge($_GET, ['pagina' => $pagina - 1])); ?>">
+                            <i class="fas fa-chevron-left"></i>
+                        </a>
+                    </li>
+                    
+                    <?php for ($i = 1; $i <= $total_paginas; $i++): ?>
+                        <?php if ($i == 1 || $i == $total_paginas || abs($i - $pagina) <= 2): ?>
+                            <li class="page-item <?php echo ($i == $pagina) ? 'active' : ''; ?>">
+                                <a class="page-link" 
+                                   href="?<?php echo http_build_query(array_merge($_GET, ['pagina' => $i])); ?>">
+                                    <?php echo $i; ?>
+                                </a>
+                            </li>
+                        <?php elseif (abs($i - $pagina) == 3): ?>
+                            <li class="page-item disabled">
+                                <span class="page-link">...</span>
+                            </li>
+                        <?php endif; ?>
+                    <?php endfor; ?>
+                    
+                    <li class="page-item <?php echo ($pagina >= $total_paginas) ? 'disabled' : ''; ?>">
+                        <a class="page-link" 
+                           href="?<?php echo http_build_query(array_merge($_GET, ['pagina' => $pagina + 1])); ?>">
+                            <i class="fas fa-chevron-right"></i>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+            <?php endif; ?>
+            
             <div class="d-flex justify-content-between align-items-center mt-3">
                 <div class="text-muted">
-                    Mostrando <?php echo $total_libros; ?> libros en el catálogo
+                    Página <?php echo $pagina; ?> de <?php echo $total_paginas; ?> 
+                    • Total en stock: <?php echo $stats['total_stock']; ?> copias
                 </div>
                 <div>
-                    <button class="btn btn-outline-primary" onclick="window.print()">
-                        <i class="fas fa-print me-1"></i> Imprimir Catálogo
-                    </button>
+                    <a href="javascript:window.print()" class="btn btn-outline-primary me-2">
+                        <i class="fas fa-print me-1"></i> Imprimir
+                    </a>
+                    <a href="agregar_libro.php" class="btn btn-success">
+                        <i class="fas fa-plus me-1"></i> Agregar Libro
+                    </a>
                 </div>
             </div>
         <?php endif; ?>
     </div>
-    
-    <!-- PESTAÑA 2: AGREGAR LIBRO -->
-    <div class="tab-pane fade" id="agregar" role="tabpanel">
-        <div class="card">
-            <div class="card-header gradient-book">
-                <h5 class="mb-0"><i class="fas fa-plus-circle me-2"></i>Agregar Nuevo Libro al Catálogo</h5>
-            </div>
-            <div class="card-body">
-                <form method="POST" action="">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="form-group mb-3">
-                                <label for="codigo_interno" class="form-label">
-                                    Código Interno <span class="text-danger">*</span>
-                                </label>
-                                <input type="text" class="form-control" id="codigo_interno" 
-                                       name="codigo_interno" 
-                                       value="<?php echo htmlspecialchars($_POST['codigo_interno'] ?? ''); ?>" 
-                                       placeholder="Ej: BIB-001, LIB-2023-01" required>
-                                <div class="form-text">Código único para identificar el libro en la biblioteca.</div>
-                            </div>
-                        </div>
-                        
-                        <div class="col-md-6">
-                            <div class="form-group mb-3">
-                                <label for="isbn" class="form-label">ISBN</label>
-                                <input type="text" class="form-control" id="isbn" 
-                                       name="isbn" 
-                                       value="<?php echo htmlspecialchars($_POST['isbn'] ?? ''); ?>" 
-                                       placeholder="Ej: 978-1-59856-200-1">
-                                <div class="form-text">Código ISBN (opcional).</div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-8">
-                            <div class="form-group mb-3">
-                                <label for="titulo" class="form-label">
-                                    Título <span class="text-danger">*</span>
-                                </label>
-                                <input type="text" class="form-control" id="titulo" 
-                                       name="titulo" 
-                                       value="<?php echo htmlspecialchars($_POST['titulo'] ?? ''); ?>" 
-                                       placeholder="Título completo del libro" required>
-                            </div>
-                        </div>
-                        
-                        <div class="col-md-4">
-                            <div class="form-group mb-3">
-                                <label for="ano_publicacion" class="form-label">Año de Publicación</label>
-                                <input type="number" class="form-control" id="ano_publicacion" 
-                                       name="ano_publicacion" 
-                                       value="<?php echo htmlspecialchars($_POST['ano_publicacion'] ?? ''); ?>" 
-                                       placeholder="Ej: 2023" min="1000" max="<?php echo date('Y'); ?>">
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-8">
-                            <div class="form-group mb-3">
-                                <label for="autor" class="form-label">
-                                    Autor <span class="text-danger">*</span>
-                                </label>
-                                <input type="text" class="form-control" id="autor" 
-                                       name="autor" 
-                                       value="<?php echo htmlspecialchars($_POST['autor'] ?? ''); ?>" 
-                                       placeholder="Nombre completo del autor" required>
-                            </div>
-                        </div>
-                        
-                        <div class="col-md-4">
-                            <div class="form-group mb-3">
-                                <label for="stock" class="form-label">Stock Inicial</label>
-                                <input type="number" class="form-control" id="stock" 
-                                       name="stock" 
-                                       value="<?php echo htmlspecialchars($_POST['stock'] ?? '1'); ?>" 
-                                       min="1" max="100" required>
-                                <div class="form-text">Cantidad de copias disponibles.</div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="form-group mb-4">
-                        <label class="form-label">Categorías</label>
-                        <div class="row">
-                            <?php foreach ($categorias as $categoria): ?>
-                            <div class="col-md-4 mb-2">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" 
-                                           name="categorias[]" 
-                                           value="<?php echo $categoria['id']; ?>" 
-                                           id="cat_<?php echo $categoria['id']; ?>"
-                                           <?php echo (isset($_POST['categorias']) && in_array($categoria['id'], $_POST['categorias'])) ? 'checked' : ''; ?>>
-                                    <label class="form-check-label" for="cat_<?php echo $categoria['id']; ?>">
-                                        <?php echo htmlspecialchars($categoria['nombre']); ?>
-                                    </label>
-                                </div>
-                            </div>
-                            <?php endforeach; ?>
-                        </div>
-                        <div class="form-text">Seleccione las categorías que correspondan al libro.</div>
-                    </div>
-                    
-                    <div class="d-grid gap-2">
-                        <button type="submit" name="agregar_libro" class="btn btn-success btn-lg">
-                            <i class="fas fa-save me-2"></i>Agregar Libro al Catálogo
-                        </button>
-                        
-                        <button type="button" class="btn btn-outline-secondary" onclick="limpiarFormulario()">
-                            <i class="fas fa-eraser me-2"></i>Limpiar Formulario
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-        
-        <!-- EJEMPLOS DE CÓDIGOS -->
-        <div class="card mt-4">
-            <div class="card-header">
-                <h6 class="mb-0"><i class="fas fa-lightbulb me-2"></i>Sugerencias de Códigos</h6>
-            </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-6">
-                        <h6>Formatos sugeridos:</h6>
-                        <ul class="mb-0">
-                            <li><code>LIB-001</code> - Libro #1</li>
-                            <li><code>BIB-2023-015</code> - Biblioteca 2023, libro 15</li>
-                            <li><code>TEOL-001</code> - Teológico #1</li>
-                            <li><code>DEV-001</code> - Devocional #1</li>
-                        </ul>
-                    </div>
-                    <div class="col-md-6">
-                        <h6>Categorías disponibles:</h6>
-                        <div class="d-flex flex-wrap gap-2">
-                            <?php foreach ($categorias as $categoria): ?>
-                                <span class="badge bg-info"><?php echo htmlspecialchars($categoria['nombre']); ?></span>
-                            <?php endforeach; ?>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
 </div>
 
-<!-- MODAL PARA VER DETALLES COMPLETOS (OPCIONAL) -->
-<div class="modal fade" id="modalDetallesLibro" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
+<!-- MODAL DE CONFIRMACIÓN DE ELIMINACIÓN -->
+<div class="modal fade" id="modalConfirmarEliminacion" tabindex="-1">
+    <div class="modal-dialog">
         <div class="modal-content">
-            <div class="modal-header gradient-book text-white">
+            <div class="modal-header bg-warning text-white">
                 <h5 class="modal-title">
-                    <i class="fas fa-book me-2"></i>
-                    Detalles del Libro
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Confirmar Eliminación
                 </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body" id="modalDetallesLibroBody">
-                <!-- Se cargará con AJAX si decides implementarlo -->
+            <div class="modal-body">
+                <p>¿Está seguro de eliminar el libro <strong id="tituloLibroEliminar"></strong>?</p>
+                <div class="alert alert-warning">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Esta acción no se puede deshacer. El libro será archivado y no aparecerá en el catálogo.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <a href="#" id="btnConfirmarEliminar" class="btn btn-danger">
+                    <i class="fas fa-trash me-1"></i> Sí, Eliminar
+                </a>
             </div>
         </div>
     </div>
 </div>
 
 <script>
-$(document).ready(function() {
-    // Auto-generar código basado en título (opcional)
-    $('#titulo').on('blur', function() {
-        if ($('#codigo_interno').val() === '') {
-            const titulo = $(this).val().trim();
-            if (titulo.length > 0) {
-                // Crear un código simple basado en las primeras letras
-                const palabras = titulo.split(' ');
-                let codigo = '';
-                if (palabras.length >= 2) {
-                    codigo = palabras[0].substring(0, 3).toUpperCase() + '-' + 
-                            palabras[1].substring(0, 3).toUpperCase();
-                } else {
-                    codigo = titulo.substring(0, 6).toUpperCase().replace(/\s/g, '');
-                }
-                $('#codigo_interno').val(codigo + '-001');
+function confirmarEliminacion(id, titulo) {
+    document.getElementById('tituloLibroEliminar').textContent = titulo;
+    document.getElementById('btnConfirmarEliminar').href = '?eliminar=' + id + '&' + new URLSearchParams(window.location.search).toString();
+    
+    const modal = new bootstrap.Modal(document.getElementById('modalConfirmarEliminacion'));
+    modal.show();
+}
+
+// Detección de código de barras para búsqueda rápida
+document.addEventListener('DOMContentLoaded', function() {
+    const inputBusqueda = document.querySelector('input[name="busqueda"]');
+    let timerEscaneo = null;
+    let codigoAcumulado = '';
+    
+    if (inputBusqueda) {
+        inputBusqueda.addEventListener('keydown', function(e) {
+            // Si presiona Enter, buscar normalmente
+            if (e.key === 'Enter') {
+                return; // Dejar que el formulario se envíe
             }
-        }
-    });
-    
-    // Formatear ISBN automáticamente
-    $('#isbn').on('blur', function() {
-        let isbn = $(this).val().trim();
-        isbn = isbn.replace(/[^0-9X]/gi, '');
-        if (isbn.length === 10 || isbn.length === 13) {
-            // Formatear con guiones
-            if (isbn.length === 10) {
-                isbn = isbn.substring(0, 1) + '-' + 
-                       isbn.substring(1, 4) + '-' + 
-                       isbn.substring(4, 9) + '-' + 
-                       isbn.substring(9);
-            } else if (isbn.length === 13) {
-                isbn = isbn.substring(0, 3) + '-' + 
-                       isbn.substring(3, 4) + '-' + 
-                       isbn.substring(4, 9) + '-' + 
-                       isbn.substring(9, 12) + '-' + 
-                       isbn.substring(12);
+            
+            // Si es un carácter de código de barras (no espacio)
+            if (e.key.length === 1 && e.key !== ' ') {
+                codigoAcumulado += e.key;
+                
+                clearTimeout(timerEscaneo);
+                timerEscaneo = setTimeout(function() {
+                    // Si el código acumulado parece un código de barras
+                    if (codigoAcumulado.length >= 8 && /^[0-9X]+$/i.test(codigoAcumulado)) {
+                        // Buscar automáticamente
+                        window.location.href = '?busqueda=' + encodeURIComponent(codigoAcumulado);
+                    }
+                    codigoAcumulado = '';
+                }, 100);
             }
-            $(this).val(isbn);
-        }
-    });
-    
-    // Validar año de publicación
-    $('#ano_publicacion').on('blur', function() {
-        const year = parseInt($(this).val());
-        const currentYear = new Date().getFullYear();
-        if (year && (year < 1000 || year > currentYear)) {
-            alert(`El año debe estar entre 1000 y ${currentYear}`);
-            $(this).val('');
-        }
-    });
-    
-    // Limpiar formulario
-    window.limpiarFormulario = function() {
-        if (confirm('¿Está seguro de limpiar todo el formulario?')) {
-            $('#agregar form')[0].reset();
-        }
-    };
-    
-    // Si hay mensaje de éxito, mostrar pestaña de catálogo
-    <?php if (!empty($mensaje_exito)): ?>
-    setTimeout(function() {
-        $('#ver-tab').tab('show');
-    }, 100);
-    <?php endif; ?>
-    
-    // Si hay mensaje de error, mantener en pestaña de agregar
-    <?php if (!empty($mensaje_error)): ?>
-    $('#agregar-tab').tab('show');
-    <?php endif; ?>
-    
-    // Auto-enfoque en primer campo según pestaña
-    $('button[data-bs-toggle="tab"]').on('shown.bs.tab', function(e) {
-        const target = $(e.target).attr('data-bs-target');
-        if (target === '#agregar') {
-            setTimeout(function() {
-                $('#codigo_interno').focus();
-            }, 300);
-        }
-    });
+        });
+        
+        // También detectar pegado
+        inputBusqueda.addEventListener('input', function(e) {
+            const valor = this.value.trim();
+            if ((valor.length === 13 || valor.length === 10 || valor.length === 8) && 
+                /^[0-9X]+$/i.test(valor)) {
+                setTimeout(() => {
+                    window.location.href = '?busqueda=' + encodeURIComponent(valor);
+                }, 300);
+            }
+        });
+        
+        // Poner foco en búsqueda al cargar
+        inputBusqueda.focus();
+        inputBusqueda.select();
+    }
 });
 </script>
 
