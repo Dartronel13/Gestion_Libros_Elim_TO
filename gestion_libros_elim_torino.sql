@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Servidor: localhost:3306
--- Tiempo de generación: 21-01-2026 a las 14:49:19
+-- Tiempo de generación: 24-01-2026 a las 12:12:24
 -- Versión del servidor: 5.7.24
 -- Versión de PHP: 8.3.1
 
@@ -38,8 +38,10 @@ CREATE TABLE `categorias` (
 
 INSERT INTO `categorias` (`id`, `nombre`) VALUES
 (3, 'Comentarios'),
+(5, 'Devocionales'),
 (2, 'Diccionarios'),
-(1, 'Historicos');
+(1, 'Historicos'),
+(4, 'Teológicos');
 
 -- --------------------------------------------------------
 
@@ -149,7 +151,7 @@ ALTER TABLE `prestamos`
 -- AUTO_INCREMENT de la tabla `categorias`
 --
 ALTER TABLE `categorias`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- AUTO_INCREMENT de la tabla `lectores`

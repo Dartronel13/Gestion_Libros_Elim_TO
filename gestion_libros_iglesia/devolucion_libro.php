@@ -53,8 +53,8 @@ ob_start();
                                placeholder="Pase el código por el escáner..."
                                autofocus
                                autocomplete="off">
-                        <button class="btn btn-primary" type="button" id="btn-simular">
-                            <i class="fas fa-camera"></i>
+                        <button class="btn btn-warning" type="button" id="btn-manual">
+                            <i class="fas fa-keyboard"></i> Manual
                         </button>
                     </div>
                     <div class="form-text mt-2">
@@ -164,6 +164,49 @@ ob_start();
     </div>
 </div>
 
+<!-- MODAL PARA INGRESO MANUAL -->
+<div class="modal fade" id="modalManual" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header gradient-warning text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-keyboard me-2"></i>
+                    Ingresar Código Manualmente
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="codigo-manual" class="form-label">
+                        <i class="fas fa-barcode me-1"></i> ISBN o Código Interno
+                    </label>
+                    <input type="text" 
+                           class="form-control form-control-lg" 
+                           id="codigo-manual" 
+                           placeholder="Ej: 978-1-59856-200-1 o BIB-001"
+                           autofocus>
+                    <div class="form-text">
+                        Ingresa el código ISBN (13 dígitos) o el código interno del libro
+                    </div>
+                </div>
+                
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>Tip:</strong> También puedes pegar el código copiado desde otra pantalla
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i> Cancelar
+                </button>
+                <button type="button" class="btn btn-primary" id="btn-buscar-manual">
+                    <i class="fas fa-search me-1"></i> Buscar Préstamo
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- MODAL DE CONFIRMACIÓN DE DEVOLUCIÓN -->
 <div class="modal fade" id="modalDevolucion" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg">
@@ -226,85 +269,231 @@ document.addEventListener('DOMContentLoaded', function() {
     cargarEstadisticas();
     
     // ============================================
-    // DETECCIÓN AUTOMÁTICA DE CÓDIGO ESCANEADO
+    // DETECCIÓN MEJORADA PARA ESCÁNER DE CÓDIGOS
     // ============================================
-    let tiempoEscaneo = null;
-    let codigoAcumulado = '';
+    let escaneando = false;
+    let codigoBuffer = '';
+    let ultimoTiempoTecla = 0;
+    const TIEMPO_ENTRE_TECLAS = 50;
     
     codigoInput.addEventListener('keydown', function(e) {
-        // Si es Enter (como si el escáner enviara Enter al final)
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            const codigo = this.value.trim();
-            if (codigo.length >= 8) { // Código válido
-                buscarPrestamo(codigo);
-            }
-            this.value = '';
+        const tiempoActual = new Date().getTime();
+        
+        // Ignorar teclas especiales excepto Enter
+        if (e.key.length > 1 && e.key !== 'Enter') {
             return;
         }
         
-        // Detectar escaneo rápido (escáneres suelen ser rápidos)
-        clearTimeout(tiempoEscaneo);
-        tiempoEscaneo = setTimeout(() => {
+        // Si es Enter y hay contenido
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            
             const codigo = this.value.trim();
-            if (codigo.length >= 8 && !/\s/.test(codigo)) {
-                // Suena como un código de barras (sin espacios, >8 chars)
+            if (codigo.length >= 3) {
+                buscarPrestamo(codigo);
+                this.value = '';
+                codigoBuffer = '';
+            }
+            return;
+        }
+        
+        // Para escáneres que no envían Enter
+        if (tiempoActual - ultimoTiempoTecla > TIEMPO_ENTRE_TECLAS) {
+            codigoBuffer = '';
+        }
+        
+        codigoBuffer += e.key;
+        ultimoTiempoTecla = tiempoActual;
+        
+        // Detectar si es un código completo
+        if (codigoBuffer.length >= 8 && !/\s/.test(codigoBuffer)) {
+            clearTimeout(window.tiempoEscaneo);
+            window.tiempoEscaneo = setTimeout(() => {
+                if (codigoBuffer.length >= 8) {
+                    buscarPrestamo(codigoBuffer);
+                    this.value = '';
+                    codigoBuffer = '';
+                }
+            }, 150);
+        }
+    });
+    
+    codigoInput.addEventListener('input', function(e) {
+        const codigo = this.value.trim();
+        
+        if (codigo.length >= 8 && !/\s/.test(codigo) && !codigo.includes(' ')) {
+            clearTimeout(window.tiempoInput);
+            window.tiempoInput = setTimeout(() => {
+                buscarPrestamo(codigo);
+                this.value = '';
+            }, 200);
+        }
+    });
+    
+    codigoInput.addEventListener('keyup', function(e) {
+        if (e.key === 'Enter') {
+            const codigo = this.value.trim();
+            if (codigo.length >= 3) {
                 buscarPrestamo(codigo);
                 this.value = '';
             }
-        }, 100);
-    });
-    
-    // También por input para detectar pegado o escritura manual
-    codigoInput.addEventListener('input', function() {
-        const codigo = this.value.trim();
-        
-        // Si parece un código completo (sin espacios, longitud típica)
-        if ((codigo.length === 13 || codigo.length === 10 || codigo.length >= 8) && 
-            !/\s/.test(codigo) && 
-            !this.value.includes(' ')) {
-            
-            // Pequeña pausa para asegurar que terminó de escanear
-            clearTimeout(tiempoEscaneo);
-            tiempoEscaneo = setTimeout(() => {
-                buscarPrestamo(codigo);
-                this.value = '';
-            }, 300);
         }
     });
     
     // ============================================
-    // FUNCIÓN PARA BUSCAR PRÉSTAMO
+    // BOTÓN PARA INGRESO MANUAL - VERSIÓN CORREGIDA
+    // ============================================
+    
+    // 1. Abrir modal al hacer clic en el botón manual
+    document.getElementById('btn-manual').addEventListener('click', function() {
+        const modalElement = document.getElementById('modalManual');
+        const modalManual = new bootstrap.Modal(modalElement);
+        modalManual.show();
+        
+        setTimeout(() => {
+            document.getElementById('codigo-manual').focus();
+        }, 500);
+    });
+    
+    // 2. Buscar cuando se haga clic en el botón del modal
+    document.getElementById('btn-buscar-manual').addEventListener('click', function() {
+        procesarBusquedaManual();
+    });
+    
+    // 3. También buscar al presionar Enter en el campo del modal
+    document.getElementById('codigo-manual').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            procesarBusquedaManual();
+        }
+    });
+    
+    // Función corregida para procesar búsqueda manual
+    function procesarBusquedaManual() {
+        const inputManual = document.getElementById('codigo-manual');
+        const codigo = inputManual.value.trim();
+        
+        if (!codigo || codigo.length < 3) {
+            mostrarErrorEnModal('El código debe tener al menos 3 caracteres');
+            return;
+        }
+        
+        // Cerrar modal primero
+        const modalElement = document.getElementById('modalManual');
+        const modalInstance = bootstrap.Modal.getInstance(modalElement);
+        if (modalInstance) {
+            modalInstance.hide();
+        }
+        
+        // Limpiar campo
+        inputManual.value = '';
+        
+        // EJECUTAR BÚSQUEDA DIRECTAMENTE
+        buscarPrestamo(codigo);
+    }
+    
+    // Función auxiliar para mostrar errores en el modal
+    function mostrarErrorEnModal(mensaje) {
+        // Remover alertas anteriores
+        const alertasAnteriores = document.querySelectorAll('#modalManual .alert-danger');
+        alertasAnteriores.forEach(alerta => alerta.remove());
+        
+        // Crear nueva alerta
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'alert alert-danger alert-dismissible fade show mt-3';
+        errorDiv.innerHTML = `
+            <i class="fas fa-exclamation-circle me-2"></i>
+            <strong>Error:</strong> ${mensaje}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        // Insertar después del campo
+        const campoCodigo = document.getElementById('codigo-manual').parentNode;
+        campoCodigo.parentNode.insertBefore(errorDiv, campoCodigo.nextSibling);
+        
+        // Auto-remover después de 5 segundos
+        setTimeout(() => {
+            if (errorDiv.parentNode) {
+                errorDiv.remove();
+            }
+        }, 5000);
+    }
+    
+    // ============================================
+    // FUNCIÓN PARA BUSCAR PRÉSTAMO - VERSIÓN SEGURA
     // ============================================
     function buscarPrestamo(codigo) {
-        if (!codigo || codigo.length < 3) return;
+        if (!codigo || codigo.length < 3) {
+            console.log('Código muy corto:', codigo);
+            return;
+        }
         
-        // Mostrar estado de búsqueda
-        mostrarEstadoEscaneo(true, `Buscando préstamo para: <strong>${codigo}</strong>`);
+        console.log('Buscando préstamo para código:', codigo);
         
-        // Simular sonido de escáner (opcional)
+        codigo = codigo.trim();
+        codigo = codigo.replace(/[^a-zA-Z0-9\-]/g, '');
+        
+        // Mostrar estado SOLO si los elementos existen
+        try {
+            if (document.getElementById('escanner-status') && document.getElementById('status-text')) {
+                mostrarEstadoEscaneo(true, `Buscando préstamo: <strong>${codigo}</strong>`);
+            }
+        } catch (e) {
+            console.log('No se pudo mostrar estado de escaneo:', e);
+        }
+        
+        // Reproducir sonido
         playBeepSound();
         
         // Hacer petición AJAX
-        fetch(`buscar_prestamo.php?codigo=${encodeURIComponent(codigo)}`)
-            .then(response => response.json())
-            .then(data => {
-                mostrarEstadoEscaneo(false);
-                
-                if (data.success) {
-                    // Mostrar modal con los datos
-                    prestamoActual = data.prestamo;
-                    mostrarModalDevolucion(data.prestamo);
-                } else {
-                    // Mostrar modal de error
-                    mostrarModalError(codigo, data.message);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        
+        fetch(`buscar_prestamo.php?codigo=${encodeURIComponent(codigo)}`, {
+            signal: controller.signal
+        })
+        .then(response => {
+            clearTimeout(timeoutId);
+            if (!response.ok) {
+                throw new Error('Error en la respuesta del servidor');
+            }
+            return response.json();
+        })
+        .then(data => {
+            // Ocultar estado SOLO si los elementos existen
+            try {
+                if (document.getElementById('escanner-status')) {
+                    mostrarEstadoEscaneo(false);
                 }
-            })
-            .catch(error => {
-                mostrarEstadoEscaneo(false);
+            } catch (e) {
+                console.log('No se pudo ocultar estado de escaneo:', e);
+            }
+            
+            if (data.success && data.prestamo) {
+                prestamoActual = data.prestamo;
+                mostrarModalDevolucion(data.prestamo);
+            } else {
+                mostrarModalError(codigo, data.message || 'No se encontró préstamo activo');
+            }
+        })
+        .catch(error => {
+            clearTimeout(timeoutId);
+            
+            // Ocultar estado SOLO si los elementos existen
+            try {
+                if (document.getElementById('escanner-status')) {
+                    mostrarEstadoEscaneo(false);
+                }
+            } catch (e) {
+                console.log('No se pudo ocultar estado de escaneo:', e);
+            }
+            
+            if (error.name === 'AbortError') {
+                mostrarModalError(codigo, 'Tiempo de espera agotado');
+            } else {
                 mostrarModalError(codigo, 'Error de conexión con el servidor');
-                console.error('Error:', error);
-            });
+            }
+            console.error('Error:', error);
+        });
     }
     
     // ============================================
@@ -316,7 +505,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const hoy = new Date().toLocaleDateString('es-ES');
         const diasTranscurridos = Math.floor((new Date() - new Date(prestamo.fecha_prestamo)) / (1000 * 60 * 60 * 24));
         
-        // Determinar estado
         let estadoHTML = '';
         let estadoClase = '';
         if (prestamo.devuelto) {
@@ -333,10 +521,8 @@ document.addEventListener('DOMContentLoaded', function() {
             estadoClase = 'primary';
         }
         
-        // Construir HTML del modal
         const modalHTML = `
             <div class="row">
-                <!-- Información del Libro -->
                 <div class="col-md-6">
                     <div class="card border-${estadoClase} mb-3">
                         <div class="card-header bg-${estadoClase} text-white">
@@ -354,7 +540,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                 </div>
                 
-                <!-- Información del Préstamo -->
                 <div class="col-md-6">
                     <div class="card border-${estadoClase} mb-3">
                         <div class="card-header bg-${estadoClase} text-white">
@@ -373,7 +558,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
             </div>
             
-            <!-- Información de la Persona -->
             <div class="row mt-2">
                 <div class="col-12">
                     <div class="card border-info">
@@ -401,7 +585,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
             </div>
             
-            <!-- Resumen -->
             <div class="alert alert-${estadoClase} mt-3">
                 <div class="d-flex align-items-center">
                     <i class="fas fa-info-circle fa-2x me-3"></i>
@@ -458,7 +641,6 @@ document.addEventListener('DOMContentLoaded', function() {
         btn.disabled = true;
         btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Procesando...';
         
-        // Hacer petición para registrar devolución
         fetch('procesar_devolucion.php', {
             method: 'POST',
             headers: {
@@ -469,7 +651,6 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                // Mostrar mensaje de éxito
                 document.getElementById('modal-body').innerHTML = `
                     <div class="text-center py-5">
                         <i class="fas fa-check-circle fa-4x text-success mb-3"></i>
@@ -483,22 +664,18 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                 `;
                 
-                // Ocultar botones del footer
                 document.querySelector('.modal-footer').style.display = 'none';
                 
-                // Actualizar lista de préstamos después de 2 segundos
                 setTimeout(() => {
                     modalDevolucion.hide();
                     cargarPrestamosActivos();
                     cargarEstadisticas();
                     prestamoActual = null;
                     
-                    // Restaurar botones
                     document.querySelector('.modal-footer').style.display = 'flex';
                     btn.disabled = false;
                     btn.innerHTML = '<i class="fas fa-check me-1"></i> Confirmar Devolución';
                     
-                    // Reproducir sonido de éxito
                     playSuccessSound();
                 }, 2000);
             } else {
@@ -521,6 +698,11 @@ document.addEventListener('DOMContentLoaded', function() {
     function mostrarEstadoEscaneo(mostrar, texto = '') {
         const statusDiv = document.getElementById('escanner-status');
         const statusText = document.getElementById('status-text');
+        
+        // Verificar que los elementos existen
+        if (!statusDiv || !statusText) {
+            return;
+        }
         
         if (mostrar) {
             statusDiv.classList.remove('d-none');
@@ -586,7 +768,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 cuerpo.innerHTML = html;
                 
-                // Agregar eventos a los botones de usar código
                 document.querySelectorAll('.usar-codigo').forEach(btn => {
                     btn.addEventListener('click', function() {
                         const codigo = this.getAttribute('data-codigo');
@@ -610,7 +791,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     function playBeepSound() {
-        // Crear sonido de escáner simple
         try {
             const audioContext = new (window.AudioContext || window.webkitAudioContext)();
             const oscillator = audioContext.createOscillator();
@@ -633,7 +813,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     function playSuccessSound() {
-        // Sonido de éxito
         try {
             const audioContext = new (window.AudioContext || window.webkitAudioContext)();
             const oscillator = audioContext.createOscillator();
@@ -642,9 +821,9 @@ document.addEventListener('DOMContentLoaded', function() {
             oscillator.connect(gainNode);
             gainNode.connect(audioContext.destination);
             
-            oscillator.frequency.setValueAtTime(523.25, audioContext.currentTime); // Do
-            oscillator.frequency.setValueAtTime(659.25, audioContext.currentTime + 0.1); // Mi
-            oscillator.frequency.setValueAtTime(783.99, audioContext.currentTime + 0.2); // Sol
+            oscillator.frequency.setValueAtTime(523.25, audioContext.currentTime);
+            oscillator.frequency.setValueAtTime(659.25, audioContext.currentTime + 0.1);
+            oscillator.frequency.setValueAtTime(783.99, audioContext.currentTime + 0.2);
             
             oscillator.type = 'sine';
             
@@ -659,38 +838,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // ============================================
-    // SIMULADOR DE ESCÁNER (para pruebas)
+    // BÚSQUEDA EN LA TABLA
     // ============================================
-    document.getElementById('btn-simular').addEventListener('click', function() {
-        const codigosEjemplo = [
-            '978-1-59856-200-1',
-            'BIB-001',
-            'LIB-2023-015',
-            '978-0-8423-3780-7',
-            'COM-001'
-        ];
-        
-        const codigoAleatorio = codigosEjemplo[Math.floor(Math.random() * codigosEjemplo.length)];
-        codigoInput.value = codigoAleatorio;
-        
-        // Mostrar notificación
-        const alerta = document.createElement('div');
-        alerta.className = 'alert alert-info alert-dismissible fade show mt-2';
-        alerta.innerHTML = `
-            <i class="fas fa-camera me-2"></i>
-            <strong>Escaneo simulado:</strong> ${codigoAleatorio}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        `;
-        document.querySelector('.card-body').insertBefore(alerta, codigoInput.parentNode.nextSibling);
-        
-        // Buscar automáticamente después de 0.5 segundos
-        setTimeout(() => {
-            buscarPrestamo(codigoAleatorio);
-            codigoInput.value = '';
-        }, 500);
-    });
-    
-    // Búsqueda manual
     document.getElementById('btn-buscar').addEventListener('click', function() {
         const texto = document.getElementById('busqueda-manual').value.trim();
         if (texto.length >= 2) {
@@ -704,7 +853,34 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
-    // Auto-focus en el campo de código
+    // ============================================
+    // ATRAJOS DE TECLADO
+    // ============================================
+    document.addEventListener('keydown', function(e) {
+        // Alt + M para abrir modal manual
+        if (e.altKey && e.keyCode === 77) {
+            e.preventDefault();
+            document.getElementById('btn-manual').click();
+        }
+        
+        // Esc para cerrar modal si está abierto
+        if (e.key === 'Escape' && document.getElementById('modalManual').classList.contains('show')) {
+            const modalManual = bootstrap.Modal.getInstance(document.getElementById('modalManual'));
+            modalManual.hide();
+            document.getElementById('codigo').focus();
+        }
+    });
+    
+    // Cuando se cierra el modal manual, enfocar el campo principal
+    document.getElementById('modalManual').addEventListener('hidden.bs.modal', function() {
+        setTimeout(() => {
+            document.getElementById('codigo').focus();
+        }, 100);
+    });
+    
+    // ============================================
+    // INICIALIZACIÓN
+    // ============================================
     codigoInput.focus();
     
     // Actualizar cada 30 segundos
