@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost:8889
--- Creato il: Gen 24, 2026 alle 22:14
+-- Creato il: Gen 26, 2026 alle 17:07
 -- Versione del server: 8.0.40
 -- Versione PHP: 8.3.14
 
@@ -37,10 +37,16 @@ CREATE TABLE `categorias` (
 --
 
 INSERT INTO `categorias` (`id`, `nombre`) VALUES
+(8, 'Biblias'),
 (3, 'Comentarios'),
+(6, 'Concordancias'),
+(7, 'Cultura Hebrea'),
 (5, 'Devocionales'),
 (2, 'Diccionarios'),
+(11, 'Guias de Celula'),
 (1, 'Historicos'),
+(9, 'Obras Bíblicas'),
+(10, 'Obras Múltiples'),
 (4, 'Teológicos');
 
 -- --------------------------------------------------------
@@ -152,7 +158,7 @@ ALTER TABLE `prestamos`
 -- AUTO_INCREMENT per la tabella `categorias`
 --
 ALTER TABLE `categorias`
-  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=12;
 
 --
 -- AUTO_INCREMENT per la tabella `lectores`
