@@ -1,6 +1,7 @@
 <?php
 // menu.php - Página de Inicio/Dashboard (sin navbar duplicado)
 require_once 'db.php';
+verificarAutenticacion();
 
 // Configurar variables para esta página específica
 $titulo = '📚 Inicio - Sistema de Biblioteca Iglesia';
@@ -230,6 +231,12 @@ $titulo = '📚 Inicio - Sistema de Biblioteca Iglesia';
                 </a>
             </div>
         </div>
+        <div style="float: right;">
+    <small>Bienvenido: <?php echo $_SESSION['nombre_completo']; ?></small>
+    <a href="login/logout.php" style="margin-left: 10px; color: #dc2626;">
+        <i class="fas fa-sign-out-alt"></i> Cerrar Sesión
+    </a>
+</div>
     </header>
 
     <!-- CONTENIDO PRINCIPAL -->
