@@ -1,10 +1,18 @@
 <?php
-// generar_etiquetas.php
-session_start();
+// generar_etiquetas.php - VERSIÓN MODIFICADA
+
+// 1. VERIFICACIÓN DE ACCESO (AGREGAR ESTO AL INICIO)
 require_once 'db.php';
+verificarAutenticacion(); // ← ESTA LÍNEA ES NUEVA
+
+// 2. REGISTRAR ACCESO A ESTA PÁGINA
+$db->registrarAccion('acceso', 'etiquetas', "Accedió al generador de etiquetas");
 
 $titulo_pagina = '🏷️ Generar Etiquetas';
 $icono_titulo = 'fas fa-barcode';
+
+// 3. REGISTRAR CONSULTA DE LIBROS DISPONIBLES
+$db->registrarAccion('consulta_libros', 'etiquetas', "Consultando libros disponibles para etiquetas");
 
 // Obtener libros disponibles
 $sql_libros = "SELECT id, codigo_interno, titulo, autor, stock 
@@ -15,6 +23,167 @@ $result_libros = $stmt_libros->get_result();
 $libros = [];
 while ($row = $result_libros->fetch_assoc()) {
     $libros[] = $row;
+}
+
+// 4. REGISTRAR RESULTADO DE CONSULTA
+$num_libros = count($libros);
+$db->registrarAccion(
+    'resultado_consulta', 
+    'etiquetas', 
+    "Encontrados {$num_libros} libros disponibles para generar etiquetas"
+);
+
+// 5. PROCESAR GENERACIÓN DE ETIQUETAS SI SE SOLICITA
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generar_etiquetas'])) {
+    $libros_seleccionados = $_POST['libros'] ?? [];
+    $tipo_etiqueta = $_POST['tipo_etiqueta'] ?? 'codigo_barras';
+    $formato = $_POST['formato'] ?? 'pdf';
+    $cantidad = intval($_POST['cantidad'] ?? 1);
+    
+    // 6. REGISTRAR INICIO DE GENERACIÓN
+    $db->registrarAccion(
+        'inicio_generacion', 
+        'etiquetas', 
+        "Iniciando generación de etiquetas - " .
+        "Libros seleccionados: " . count($libros_seleccionados) . ", " .
+        "Tipo: {$tipo_etiqueta}, Formato: {$formato}, Cantidad: {$cantidad}"
+    );
+    
+    // Validar que se haya seleccionado al menos un libro
+    if (empty($libros_seleccionados)) {
+        // 7. REGISTRAR ERROR - SIN LIBROS SELECCIONADOS
+        $db->registrarAccion(
+            'error_seleccion', 
+            'etiquetas', 
+            "Error en generación - No se seleccionaron libros"
+        );
+        
+        $_SESSION['error_etiquetas'] = "Debe seleccionar al menos un libro.";
+        header('Location: generar_etiquetas.php');
+        exit;
+    }
+    
+    // Validar cantidad
+    if ($cantidad < 1 || $cantidad > 100) {
+        // 8. REGISTRAR ERROR - CANTIDAD INVÁLIDA
+        $db->registrarAccion(
+            'error_cantidad', 
+            'etiquetas', 
+            "Error en generación - Cantidad inválida: {$cantidad}"
+        );
+        
+        $_SESSION['error_etiquetas'] = "La cantidad debe estar entre 1 y 100.";
+        header('Location: generar_etiquetas.php');
+        exit;
+    }
+    
+    // Obtener información detallada de los libros seleccionados
+    $ids_seleccionados = array_map('intval', $libros_seleccionados);
+    $placeholders = str_repeat('?,', count($ids_seleccionados) - 1) . '?';
+    
+    $sql_detalle = "SELECT id, codigo_interno, titulo, autor FROM libros 
+                    WHERE id IN ($placeholders) AND activo = 1";
+    $stmt_detalle = $db->query($sql_detalle, $ids_seleccionados);
+    $result_detalle = $stmt_detalle->get_result();
+    
+    $libros_etiquetas = [];
+    while ($row = $result_detalle->fetch_assoc()) {
+        $libros_etiquetas[] = $row;
+    }
+    
+    // 9. REGISTRAR LIBROS OBTENIDOS PARA ETIQUETAS
+    $nombres_libros = array_map(function($libro) {
+        return "'{$libro['titulo']}'";
+    }, $libros_etiquetas);
+    
+    $db->registrarAccion(
+        'libros_para_etiquetas', 
+        'etiquetas', 
+        "Libros seleccionados para etiquetas: " . implode(', ', $nombres_libros)
+    );
+    
+    // Preparar datos para la generación de etiquetas
+    $datos_etiquetas = [
+        'fecha_generacion' => date('Y-m-d H:i:s'),
+        'usuario' => $_SESSION['nombre_completo'] ?? 'Desconocido',
+        'total_libros' => count($libros_etiquetas),
+        'total_etiquetas' => count($libros_etiquetas) * $cantidad,
+        'tipo_etiqueta' => $tipo_etiqueta,
+        'formato' => $formato,
+        'libros' => $libros_etiquetas
+    ];
+    
+    // Guardar en sesión para el proceso de generación
+    $_SESSION['datos_etiquetas'] = $datos_etiquetas;
+    
+    // 10. REGISTRAR PREPARACIÓN EXITOSA
+    $db->registrarAccion(
+        'preparacion_exitosa', 
+        'etiquetas', 
+        "Datos preparados para generación - " .
+        "Total etiquetas a generar: " . (count($libros_etiquetas) * $cantidad)
+    );
+    
+    // Redirigir al generador real de etiquetas (PDF/Impresión)
+    if ($formato === 'pdf') {
+        header('Location: generar_pdf_etiquetas.php');
+    } else {
+        header('Location: imprimir_etiquetas.php');
+    }
+    exit;
+}
+
+// 11. PROCESAR GENERACIÓN RÁPIDA POR CÓDIGO (si aplica)
+if (isset($_GET['codigo']) && !empty($_GET['codigo'])) {
+    $codigo = trim($_GET['codigo']);
+    
+    $db->registrarAccion(
+        'generacion_rapida', 
+        'etiquetas', 
+        "Generación rápida solicitada para código: {$codigo}"
+    );
+    
+    // Buscar libro por código
+    $sql_buscar = "SELECT id FROM libros WHERE codigo_interno = ? AND activo = 1";
+    $stmt_buscar = $db->query($sql_buscar, [$codigo]);
+    $result_buscar = $stmt_buscar->get_result();
+    
+    if ($result_buscar->num_rows > 0) {
+        $libro = $result_buscar->fetch_assoc();
+        
+        $db->registrarAccion(
+            'libro_encontrado_rapido', 
+            'etiquetas', 
+            "Libro encontrado para código {$codigo} - ID: {$libro['id']}"
+        );
+        
+        // Redirigir con el libro seleccionado
+        echo '<script>
+            document.addEventListener("DOMContentLoaded", function() {
+                document.getElementById("libro_' . $libro['id'] . '").checked = true;
+                document.getElementById("cantidad").value = 1;
+            });
+        </script>';
+    } else {
+        $db->registrarAccion(
+            'libro_no_encontrado_rapido', 
+            'etiquetas', 
+            "Código no encontrado: {$codigo}"
+        );
+        
+        $_SESSION['error_etiquetas'] = "Código '$codigo' no encontrado.";
+    }
+}
+
+// 12. MOSTRAR MENSAJES DE SESIÓN (si existen)
+if (isset($_SESSION['error_etiquetas'])) {
+    $mensaje_error = $_SESSION['error_etiquetas'];
+    unset($_SESSION['error_etiquetas']);
+}
+
+if (isset($_SESSION['exito_etiquetas'])) {
+    $mensaje_exito = $_SESSION['exito_etiquetas'];
+    unset($_SESSION['exito_etiquetas']);
 }
 
 ob_start();

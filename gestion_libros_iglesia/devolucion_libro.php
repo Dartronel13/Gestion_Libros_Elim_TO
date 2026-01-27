@@ -1,8 +1,22 @@
 <?php
+// devolucion_libro.php - VERSIÓN MODIFICADA
+
+// 1. VERIFICACIÓN DE ACCESO (AGREGAR ESTO AL INICIO)
 require_once 'db.php';
+verificarAutenticacion(); // ← ESTA LÍNEA ES NUEVA
+
+// 2. REGISTRAR ACCESO A ESTA PÁGINA
+$db->registrarAccion('acceso', 'devoluciones', "Accedió al módulo de devolución de libros");
 
 // La agregue para que detecte que viene de gestion prestamo
 if (isset($_GET['from']) && $_GET['from'] === 'gestion' && isset($_GET['codigo'])) {
+    // 3. REGISTRAR REDIRECCIÓN DESDE GESTIÓN
+    $db->registrarAccion(
+        'redireccion_gestion', 
+        'devoluciones', 
+        "Redirigido desde gestión con código: " . htmlspecialchars($_GET['codigo'])
+    );
+    
     // Pre-llenar el campo de escáner
     echo '<script>
     document.addEventListener("DOMContentLoaded", function() {
@@ -14,9 +28,13 @@ if (isset($_GET['from']) && $_GET['from'] === 'gestion' && isset($_GET['codigo']
     });
     </script>';
 }
+
 // Configurar variables para layout
 $titulo_pagina = '📖 Devolución de Libros';
 $icono_titulo = 'fas fa-exchange-alt';
+
+// 4. REGISTRAR CONSULTA DE PRÉSTAMOS ACTIVOS
+$db->registrarAccion('consulta_activos', 'devoluciones', "Consultando préstamos activos para devolución");
 
 // Obtener préstamos activos para mostrar
 $query_activos = "SELECT p.*, l.titulo, l.codigo_interno, l.isbn,
@@ -30,8 +48,175 @@ $query_activos = "SELECT p.*, l.titulo, l.codigo_interno, l.isbn,
                   LIMIT 10";
 $result_activos = mysqli_query($link, $query_activos);
 
+// 5. REGISTRAR RESULTADO DE CONSULTA
+if ($result_activos) {
+    $num_activos = mysqli_num_rows($result_activos);
+    $db->registrarAccion(
+        'consulta_exitosa', 
+        'devoluciones', 
+        "Encontrados {$num_activos} préstamos activos para devolución"
+    );
+} else {
+    $db->registrarAccion(
+        'error_consulta', 
+        'devoluciones', 
+        "Error al consultar préstamos activos: " . mysqli_error($link)
+    );
+}
+
+// 6. PROCESAR DEVOLUCIÓN SI SE RECIBE POR POST
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Identificar si es búsqueda o confirmación de devolución
+    if (isset($_POST['buscar_codigo'])) {
+        $codigo = trim($_POST['codigo'] ?? '');
+        
+        // 7. REGISTRAR BÚSQUEDA DE CÓDIGO
+        $db->registrarAccion(
+            'busqueda_codigo', 
+            'devoluciones', 
+            "Buscando préstamo por código: '{$codigo}'"
+        );
+        
+        // ... tu código de búsqueda ...
+        
+    } elseif (isset($_POST['confirmar_devolucion'])) {
+        $prestamo_id = $_POST['prestamo_id'] ?? 0;
+        $observaciones = trim($_POST['observaciones'] ?? '');
+        $condicion_libro = $_POST['condicion_libro'] ?? 'bueno';
+        
+        // 8. REGISTRAR INICIO DE DEVOLUCIÓN
+        $db->registrarAccion(
+            'inicio_devolucion', 
+            'devoluciones', 
+            "Iniciando devolución - Préstamo ID: {$prestamo_id}, " .
+            "Condición: {$condicion_libro}, " .
+            "Observaciones: " . substr($observaciones, 0, 100)
+        );
+        
+        // Obtener información del préstamo antes de procesar
+        $sql_info = "SELECT p.*, l.titulo, l.id as libro_id, l.stock, 
+                            lec.nombre, lec.apellido, lec.email
+                     FROM prestamos p
+                     JOIN libros l ON p.id_libro = l.id
+                     LEFT JOIN lectores lec ON p.id_lector = lec.id
+                     WHERE p.id = ? AND p.devuelto = 0";
+        
+        $stmt_info = $db->query($sql_info, [$prestamo_id]);
+        $prestamo_info = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt_info));
+        
+        if (!$prestamo_info) {
+            // 9. REGISTRAR ERROR - PRÉSTAMO NO ENCONTRADO
+            $db->registrarAccion(
+                'error_no_encontrado', 
+                'devoluciones', 
+                "Préstamo no encontrado o ya devuelto - ID: {$prestamo_id}"
+            );
+            
+            $error = "Préstamo no encontrado o ya devuelto";
+            
+        } else {
+            // Iniciar transacción para asegurar consistencia
+            mysqli_begin_transaction($link);
+            
+            try {
+                // 1. Marcar préstamo como devuelto
+                $sql_update = "UPDATE prestamos 
+                               SET devuelto = 1, 
+                                   fecha_devolucion_real = CURDATE(),
+                                   observaciones_devolucion = ?
+                               WHERE id = ?";
+                $stmt_update = $db->query($sql_update, [$observaciones, $prestamo_id]);
+                
+                if (!$stmt_update) {
+                    throw new Exception("Error al actualizar préstamo");
+                }
+                
+                // 2. Actualizar stock del libro
+                $sql_stock = "UPDATE libros SET stock = stock + 1 WHERE id = ?";
+                $stmt_stock = $db->query($sql_stock, [$prestamo_info['libro_id']]);
+                
+                if (!$stmt_stock) {
+                    throw new Exception("Error al actualizar stock");
+                }
+                
+                // 3. Registrar condición del libro (si tienes tabla para esto)
+                if ($condicion_libro !== 'bueno') {
+                    $sql_condicion = "INSERT INTO libro_condiciones 
+                                     (libro_id, prestamo_id, condicion, observaciones, fecha)
+                                     VALUES (?, ?, ?, ?, CURDATE())";
+                    $db->query($sql_condicion, [
+                        $prestamo_info['libro_id'],
+                        $prestamo_id,
+                        $condicion_libro,
+                        $observaciones
+                    ]);
+                }
+                
+                // Confirmar transacción
+                mysqli_commit($link);
+                
+                // 10. REGISTRAR DEVOLUCIÓN EXITOSA
+                $db->registrarAccion(
+                    'devolucion_exitosa', 
+                    'devoluciones', 
+                    "Devolución completada - Préstamo ID: {$prestamo_id}, " .
+                    "Libro: '{$prestamo_info['titulo']}' (ID: {$prestamo_info['libro_id']}), " .
+                    "Lector: {$prestamo_info['nombre']} {$prestamo_info['apellido']}, " .
+                    "Stock actualizado de {$prestamo_info['stock']} a " . ($prestamo_info['stock'] + 1)
+                );
+                
+                // 11. REGISTRAR STOCK RESTAURADO
+                $db->registrarAccion(
+                    'stock_restaurado', 
+                    'inventario', 
+                    "Stock restaurado por devolución - " .
+                    "Libro ID: {$prestamo_info['libro_id']}, " .
+                    "Nuevo stock: " . ($prestamo_info['stock'] + 1)
+                );
+                
+                // Preparar datos para mostrar confirmación
+                $devolucion_exitosa = true;
+                $datos_devolucion = [
+                    'prestamo_id' => $prestamo_id,
+                    'libro_titulo' => $prestamo_info['titulo'],
+                    'lector_nombre' => $prestamo_info['nombre'] . ' ' . $prestamo_info['apellido'],
+                    'fecha_prestamo' => $prestamo_info['fecha_prestamo'],
+                    'fecha_devolucion_estimada' => $prestamo_info['fecha_devolucion'],
+                    'condicion' => $condicion_libro,
+                    'observaciones' => $observaciones,
+                    'nuevo_stock' => $prestamo_info['stock'] + 1
+                ];
+                
+                // Generar número de recibo de devolución
+                $numero_recibo = 'DEV-' . str_pad($prestamo_id, 6, '0', STR_PAD_LEFT) . '-' . date('Ymd');
+                
+                $db->registrarAccion(
+                    'recibo_devolucion', 
+                    'devoluciones', 
+                    "Recibo de devolución generado: {$numero_recibo}"
+                );
+                
+            } catch (Exception $e) {
+                // Revertir transacción en caso de error
+                mysqli_rollback($link);
+                
+                // 12. REGISTRAR ERROR EN DEVOLUCIÓN
+                $db->registrarAccion(
+                    'error_devolucion', 
+                    'devoluciones', 
+                    "Error en devolución - Préstamo ID: {$prestamo_id}, " .
+                    "Mensaje: " . $e->getMessage()
+                );
+                
+                $error = "Error al procesar la devolución: " . $e->getMessage();
+            }
+        }
+    }
+}
+
 ob_start();
 ?>
+
 <div class="row">
     <!-- COLUMNA IZQUIERDA: Escáner -->
     <div class="col-md-5 mb-4">

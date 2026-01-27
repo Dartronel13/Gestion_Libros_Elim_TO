@@ -1,7 +1,12 @@
 <?php
-// agregar_prestamo.php - VERSIÓN CON SISTEMA SIMILAR A DEVOLUCIONES
-session_start();
+// agregar_prestamo.php - VERSIÓN MODIFICADA
+
+// 1. VERIFICACIÓN DE ACCESO (AGREGAR ESTO AL INICIO)
 require_once 'db.php';
+verificarAutenticacion(); // ← ESTA LÍNEA ES NUEVA
+
+// 2. REGISTRAR ACCESO A ESTA PÁGINA
+$db->registrarAccion('acceso', 'prestamos', "Accedió al formulario de nuevo préstamo");
 
 // Configurar variables para layout
 $titulo_pagina = '📚 Nuevo Préstamo';
@@ -34,6 +39,10 @@ $tipo_lector = $_POST['tipo_lector'] ?? 'existente';
 
 // Procesar el formulario
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    
+    // 3. REGISTRAR INTENTO DE CREAR PRÉSTAMO (AGREGAR ESTO)
+    $db->registrarAccion('inicio_creacion', 'prestamos', "Inició proceso de creación de préstamo");
+    
     // Validación simple
     if (empty($_POST['id_libro']) || empty($_POST['fecha_prestamo'])) {
         $error = "El libro y la fecha de préstamo son obligatorios.";
@@ -87,12 +96,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $datos['id_lector'] = 'nuevo'; // Esto indica que es un lector nuevo
         }
         
+        // 4. REGISTRAR VALIDACIÓN EXITOSA (AGREGAR ESTO)
+        $db->registrarAccion(
+            'validacion_exitosa', 
+            'prestamos', 
+            "Datos de préstamo validados - Libro ID: {$datos['id_libro']}, " .
+            "Tipo lector: {$datos['tipo_lector']}"
+        );
+        
         // Guardar en sesión
         $_SESSION['datos_prestamo'] = $datos;
+        
+        // 5. REGISTRAR REDIRECCIÓN A CONFIRMACIÓN (AGREGAR ESTO)
+        $db->registrarAccion('redireccion', 'prestamos', "Redirigiendo a confirmar_prestamo.php con datos validados");
         
         // Redirigir
         header('Location: confirmar_prestamo.php');
         exit();
+    } else {
+        // 6. REGISTRAR ERROR DE VALIDACIÓN (AGREGAR ESTO)
+        $db->registrarAccion(
+            'validacion_fallida', 
+            'prestamos', 
+            "Error en validación: " . $error
+        );
     }
 }
 
@@ -103,6 +130,7 @@ if ($error) {
 
 ob_start();
 ?>
+
 <!-- PARA QUE APAREZCA Y DESAPAREZCA EL MENU DE NUEVO LECTOR -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 

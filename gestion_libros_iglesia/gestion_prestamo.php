@@ -1,11 +1,19 @@
 <?php
-// gestion_prestamo.php
-session_start();
+// gestion_prestamo.php - VERSIÓN MODIFICADA CON LOGS
+
+// 1. VERIFICACIÓN DE ACCESO (AGREGAR ESTO AL INICIO)
 require_once 'db.php';
+verificarAutenticacion(); // ← ESTA LÍNEA ES NUEVA
+
+// 2. REGISTRAR ACCESO A ESTA PÁGINA
+$db->registrarAccion('acceso', 'prestamos', "Accedió a gestión de préstamos");
 
 // Configurar variables para layout
 $titulo_pagina = '📋 Gestión de Préstamos';
 $icono_titulo = 'fas fa-tasks';
+
+// 3. REGISTRAR CONSULTA DE ESTADÍSTICAS
+$db->registrarAccion('consulta', 'prestamos', "Consultando estadísticas de préstamos");
 
 // Obtener estadísticas
 $estadisticas = [];
@@ -35,11 +43,44 @@ $sql_total = "SELECT COUNT(*) as total FROM prestamos";
 $result_total = mysqli_query($link, $sql_total);
 $estadisticas['total'] = mysqli_fetch_assoc($result_total)['total'];
 
+// 4. REGISTRAR ESTADÍSTICAS OBTENIDAS
+$db->registrarAccion(
+    'estadisticas_obtenidas', 
+    'prestamos', 
+    "Estadísticas obtenidas - Activos: {$estadisticas['activos']}, " .
+    "Por vencer: {$estadisticas['por_vencer']}, " .
+    "Vencidos: {$estadisticas['vencidos']}, " .
+    "Total: {$estadisticas['total']}"
+);
+
 // Determinar pestaña activa
 $pestaña_activa = $_GET['tab'] ?? 'activos';
 $busqueda = $_GET['busqueda'] ?? '';
 $filtro_lector = $_GET['filtro_lector'] ?? '';
 $filtro_fecha = $_GET['filtro_fecha'] ?? '';
+
+// 5. REGISTRAR FILTROS APLICADOS
+$filtros_aplicados = [];
+if (!empty($pestaña_activa) && $pestaña_activa != 'activos') {
+    $filtros_aplicados[] = "Pestaña: {$pestaña_activa}";
+}
+if (!empty($busqueda)) {
+    $filtros_aplicados[] = "Búsqueda: '{$busqueda}'";
+}
+if (!empty($filtro_lector)) {
+    $filtros_aplicados[] = "Lector ID: {$filtro_lector}";
+}
+if (!empty($filtro_fecha)) {
+    $filtros_aplicados[] = "Fecha: {$filtro_fecha}";
+}
+
+if (!empty($filtros_aplicados)) {
+    $db->registrarAccion(
+        'filtros_aplicados', 
+        'prestamos', 
+        "Filtros aplicados: " . implode(', ', $filtros_aplicados)
+    );
+}
 
 // Construir consulta según pestaña
 switch ($pestaña_activa) {
@@ -108,6 +149,20 @@ if ($result_prestamos) {
     while ($row = mysqli_fetch_assoc($result_prestamos)) {
         $prestamos[] = $row;
     }
+    
+    // 6. REGISTRAR CONSULTA EXITOSA
+    $db->registrarAccion(
+        'consulta_exitosa', 
+        'prestamos', 
+        "Consultados " . count($prestamos) . " préstamos con filtros aplicados"
+    );
+} else {
+    // 7. REGISTRAR ERROR EN CONSULTA
+    $db->registrarAccion(
+        'error_consulta', 
+        'prestamos', 
+        "Error en consulta de préstamos: " . mysqli_error($link)
+    );
 }
 
 // Obtener lista de lectores para filtro
@@ -120,8 +175,82 @@ if ($result_lectores) {
     }
 }
 
+// 8. AGREGAR LOGS PARA ACCIONES ESPECÍFICAS (si las tienes)
+// Por ejemplo, si procesas devoluciones desde esta misma página:
+
+if (isset($_GET['marcar_devuelto']) && is_numeric($_GET['marcar_devuelto'])) {
+    $prestamo_id = $_GET['marcar_devuelto'];
+    
+    // 9. REGISTRAR INICIO DE DEVOLUCIÓN
+    $db->registrarAccion(
+        'inicio_devolucion', 
+        'devoluciones', 
+        "Iniciando devolución desde gestión - Préstamo ID: {$prestamo_id}"
+    );
+    
+    // Obtener info del préstamo antes
+    $sql_info = "SELECT p.id_libro, l.titulo, lec.nombre, lec.apellido 
+                 FROM prestamos p
+                 JOIN libros l ON p.id_libro = l.id
+                 JOIN lectores lec ON p.id_lector = lec.id
+                 WHERE p.id = ?";
+    $stmt_info = $db->query($sql_info, [$prestamo_id]);
+    $prestamo_info = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt_info));
+    
+    // Marcar como devuelto
+    $sql_update = "UPDATE prestamos SET devuelto = 1, fecha_devolucion = CURDATE() WHERE id = ?";
+    $stmt_update = $db->query($sql_update, [$prestamo_id]);
+    
+    if ($stmt_update) {
+        // Actualizar stock
+        $sql_stock = "UPDATE libros SET stock = stock + 1 WHERE id = ?";
+        $db->query($sql_stock, [$prestamo_info['id_libro']]);
+        
+        // 10. REGISTRAR DEVOLUCIÓN EXITOSA
+        $db->registrarAccion(
+            'devolucion_exitosa', 
+            'devoluciones', 
+            "Devolución procesada - Préstamo ID: {$prestamo_id}, " .
+            "Libro: '{$prestamo_info['titulo']}', " .
+            "Lector: {$prestamo_info['nombre']} {$prestamo_info['apellido']}"
+        );
+        
+        // 11. REGISTRAR STOCK RESTAURADO
+        $db->registrarAccion(
+            'stock_restaurado', 
+            'inventario', 
+            "Stock restaurado por devolución - Libro ID: {$prestamo_info['id_libro']}"
+        );
+        
+        // Redirigir para evitar reenvío
+        header("Location: gestion_prestamo.php?tab={$pestaña_activa}&exito=1");
+        exit();
+    } else {
+        // 12. REGISTRAR ERROR EN DEVOLUCIÓN
+        $db->registrarAccion(
+            'error_devolucion', 
+            'devoluciones', 
+            "Error al marcar devolución - Préstamo ID: {$prestamo_id}"
+        );
+    }
+}
+
+// También para renovar préstamos
+if (isset($_GET['renovar']) && is_numeric($_GET['renovar'])) {
+    $prestamo_id = $_GET['renovar'];
+    
+    // 13. REGISTRAR INICIO DE RENOVACIÓN
+    $db->registrarAccion(
+        'inicio_renovacion', 
+        'prestamos', 
+        "Iniciando renovación - Préstamo ID: {$prestamo_id}"
+    );
+    
+}
+
 ob_start();
 ?>
+
 <style>
 /* Estilos para pestañas con texto negro */
 .nav-tabs .nav-link {

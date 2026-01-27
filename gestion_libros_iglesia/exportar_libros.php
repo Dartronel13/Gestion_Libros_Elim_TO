@@ -1,7 +1,33 @@
 <?php
 // exportar_libros.php
-session_start();
+
+// 1. VERIFICACIÓN DE ACCESO (AGREGAR ESTO AL INICIO)
 require_once 'db.php';
+verificarAutenticacion(); // ← ESTA LÍNEA ES NUEVA
+
+// 2. REGISTRAR INICIO DE EXPORTACIÓN
+$busqueda = trim($_GET['busqueda'] ?? '');
+$categoria_filtro = $_GET['categoria'] ?? '';
+$stock_filtro = $_GET['stock'] ?? '';
+
+// Registrar filtros aplicados para exportación
+$filtros_exportacion = [];
+if (!empty($busqueda)) {
+    $filtros_exportacion[] = "Búsqueda: '{$busqueda}'";
+}
+if (!empty($categoria_filtro) && is_numeric($categoria_filtro)) {
+    $filtros_exportacion[] = "Categoría ID: {$categoria_filtro}";
+}
+if (!empty($stock_filtro)) {
+    $filtros_exportacion[] = "Stock: {$stock_filtro}";
+}
+
+$db->registrarAccion(
+    'inicio_exportacion', 
+    'catalogo', 
+    "Iniciando exportación de catálogo a Excel" . 
+    (empty($filtros_exportacion) ? "" : " - Filtros: " . implode(', ', $filtros_exportacion))
+);
 
 // Configurar headers para descarga Excel
 header('Content-Type: application/vnd.ms-excel');
@@ -10,9 +36,6 @@ header('Pragma: no-cache');
 header('Expires: 0');
 
 // Obtener todos los libros activos con filtros aplicados
-$busqueda = trim($_GET['busqueda'] ?? '');
-$categoria_filtro = $_GET['categoria'] ?? '';
-$stock_filtro = $_GET['stock'] ?? '';
 
 // Construir consulta con filtros (igual que en catálogo)
 $condiciones = ["l.activo = 1"];
@@ -40,6 +63,13 @@ if ($stock_filtro === 'disponible') {
 
 $where_clause = !empty($condiciones) ? "WHERE " . implode(" AND ", $condiciones) : "";
 
+// 3. REGISTRAR CONSULTA DE EXPORTACIÓN
+$db->registrarAccion(
+    'consulta_exportacion', 
+    'catalogo', 
+    "Consultando libros para exportación con " . count($condiciones) . " condiciones"
+);
+
 // Obtener libros
 $sql_libros = "SELECT l.*, GROUP_CONCAT(c.nombre SEPARATOR ', ') as categorias_nombres
                FROM libros l
@@ -56,8 +86,37 @@ if (!empty($parametros)) {
     $result_libros = mysqli_query($link, $sql_libros);
 }
 
+// Contar resultados
+$num_libros = mysqli_num_rows($result_libros);
+
+// 4. REGISTRAR RESULTADO DE CONSULTA
+$db->registrarAccion(
+    'resultado_exportacion', 
+    'catalogo', 
+    "Exportación - {$num_libros} libros encontrados para exportar"
+);
+
+if ($num_libros === 0) {
+    // 5. REGISTRAR EXPORTACIÓN VACÍA
+    $db->registrarAccion(
+        'exportacion_vacia', 
+        'catalogo', 
+        "Exportación cancelada - No hay libros que exportar con los filtros aplicados"
+    );
+    
+    // Crear un Excel vacío con mensaje
+    echo "<table border='1'>";
+    echo "<tr><th colspan='7'>Catálogo de Libros - " . date('d/m/Y') . "</th></tr>";
+    echo "<tr><td colspan='7' style='color: red; text-align: center; padding: 20px;'>";
+    echo "No hay libros que exportar con los filtros aplicados.";
+    echo "</td></tr>";
+    echo "</table>";
+    exit;
+}
+
 // Crear contenido Excel
 ?>
+
 <!DOCTYPE html>
 <html>
 <head>

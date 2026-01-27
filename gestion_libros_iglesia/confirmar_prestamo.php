@@ -1,9 +1,16 @@
 <?php
-// confirmar_prestamo.php - CORRECCIÓN
-session_start();
-require_once 'db.php';
+// confirmar_prestamo.php 
 
+// 1. VERIFICACIÓN DE ACCESO (AGREGAR ESTO AL INICIO)
+require_once 'db.php';
+verificarAutenticacion(); // ← ESTA LÍNEA ES NUEVA
+
+// 2. REGISTRAR ACCESO A ESTA PÁGINA
+$db->registrarAccion('acceso', 'prestamos', "Accedió a confirmación de préstamo");
+
+// Verificar que hay datos del préstamo
 if (!isset($_SESSION['datos_prestamo'])) {
+    $db->registrarAccion('error_sesion', 'prestamos', "Intento de acceso sin datos de préstamo");
     header('Location: agregar_prestamo.php');
     exit();
 }
@@ -12,13 +19,22 @@ $datos = $_SESSION['datos_prestamo'];
 
 // Validar datos mínimos
 if (empty($datos['id_libro']) || empty($datos['fecha_prestamo'])) {
+    $db->registrarAccion('error_datos', 'prestamos', "Datos incompletos del préstamo");
     die("Error: Datos incompletos del préstamo.");
 }
+
+// 3. REGISTRAR INICIO DE CONFIRMACIÓN
+$db->registrarAccion(
+    'inicio_confirmacion', 
+    'prestamos', 
+    "Iniciando confirmación - Libro ID: {$datos['id_libro']}, Tipo lector: {$datos['tipo_lector']}"
+);
 
 // Obtener información completa del libro
 $sql_libro = "SELECT * FROM libros WHERE id = ?";
 $stmt_libro = $db->query($sql_libro, [$datos['id_libro']]);
 if (!$stmt_libro) {
+    $db->registrarAccion('error_consulta', 'prestamos', "Error en consulta de libro ID: {$datos['id_libro']}");
     die("Error en consulta de libro.");
 }
 
@@ -26,11 +42,20 @@ $result_libro = mysqli_stmt_get_result($stmt_libro);
 $libro = mysqli_fetch_assoc($result_libro);
 
 if (!$libro) {
+    $db->registrarAccion('error_no_encontrado', 'prestamos', "Libro no encontrado ID: {$datos['id_libro']}");
     die("Error: Libro no encontrado.");
 }
 
-// Determinar ID del lector - CORRECCIÓN IMPORTANTE
+// Determinar ID del lector
 if ($datos['tipo_lector'] === 'nuevo') {
+    
+    // 4. REGISTRAR CREACIÓN DE NUEVO LECTOR
+    $db->registrarAccion(
+        'creando_nuevo_lector', 
+        'lectores', 
+        "Creando nuevo lector: {$datos['nombre']} {$datos['apellido']}, Email: {$datos['email']}"
+    );
+    
     // Insertar nuevo lector
     $sql_nuevo_lector = "INSERT INTO lectores (nombre, apellido, email, direccion, telefono, codigo_fiscal) 
                          VALUES (?, ?, ?, ?, ?, ?)";
@@ -47,19 +72,47 @@ if ($datos['tipo_lector'] === 'nuevo') {
     $stmt_lector = $db->query($sql_nuevo_lector, $params_lector);
     
     if (!$stmt_lector) {
+        $db->registrarAccion(
+            'error_lector', 
+            'lectores', 
+            "Error al crear lector: " . mysqli_error($link)
+        );
         die("Error al registrar nuevo lector: " . mysqli_error($link));
     }
     
     $id_lector = mysqli_insert_id($link);
     
+    // 5. REGISTRAR LECTOR CREADO EXITOSAMENTE
+    $db->registrarAccion(
+        'lector_creado', 
+        'lectores', 
+        "Nuevo lector creado ID: {$id_lector} - {$datos['nombre']} {$datos['apellido']}"
+    );
+    
 } else {
-    // Lector existente - AQUÍ ESTABA EL ERROR
+    // Lector existente
     if (empty($datos['id_lector']) || !is_numeric($datos['id_lector'])) {
+        $db->registrarAccion('error_id_lector', 'prestamos', "ID de lector inválido: " . $datos['id_lector']);
         die("Error: ID de lector inválido.");
     }
     
     $id_lector = $datos['id_lector'];
+    
+    // 6. REGISTRAR USO DE LECTOR EXISTENTE
+    $db->registrarAccion(
+        'usando_lector_existente', 
+        'prestamos', 
+        "Usando lector existente ID: {$id_lector}"
+    );
 }
+
+// 7. REGISTRAR ANTES DE CREAR PRÉSTAMO
+$db->registrarAccion(
+    'creando_prestamo', 
+    'prestamos', 
+    "Creando préstamo - Libro: '{$libro['titulo']}' (ID: {$datos['id_libro']}), " .
+    "Lector ID: {$id_lector}, Fecha: {$datos['fecha_prestamo']}"
+);
 
 // Registrar el préstamo
 $sql_prestamo = "INSERT INTO prestamos (id_libro, id_lector, fecha_prestamo, fecha_devolucion, devuelto) 
@@ -74,18 +127,52 @@ $params_prestamo = [
 $stmt_prestamo = $db->query($sql_prestamo, $params_prestamo);
 
 if (!$stmt_prestamo) {
+    $db->registrarAccion(
+        'error_prestamo', 
+        'prestamos', 
+        "Error al crear préstamo: " . mysqli_error($link)
+    );
     die("Error al registrar el préstamo: " . mysqli_error($link));
 }
+
+$id_prestamo = mysqli_insert_id($link);
+
+// 8. REGISTRAR PRÉSTAMO CREADO EXITOSAMENTE
+$db->registrarAccion(
+    'prestamo_creado', 
+    'prestamos', 
+    "Préstamo creado exitosamente ID: {$id_prestamo} - " .
+    "Libro: '{$libro['titulo']}' (ID: {$datos['id_libro']}), " .
+    "Lector ID: {$id_lector}"
+);
+
+// 9. REGISTRAR ACTUALIZACIÓN DE STOCK
+$db->registrarAccion(
+    'actualizando_stock', 
+    'inventario', 
+    "Actualizando stock del libro ID: {$datos['id_libro']} - Stock anterior: {$libro['stock']}"
+);
 
 // Actualizar stock del libro
 $sql_update = "UPDATE libros SET stock = stock - 1 WHERE id = ?";
 $stmt_update = $db->query($sql_update, [$datos['id_libro']]);
 
 if (!$stmt_update) {
+    $db->registrarAccion(
+        'error_stock', 
+        'inventario', 
+        "Error al actualizar stock del libro ID: {$datos['id_libro']}"
+    );
     die("Error al actualizar el stock: " . mysqli_error($link));
 }
 
-$id_prestamo = mysqli_insert_id($link);
+// 10. REGISTRAR STOCK ACTUALIZADO
+$db->registrarAccion(
+    'stock_actualizado', 
+    'inventario', 
+    "Stock actualizado - Libro ID: {$datos['id_libro']}, " .
+    "Nuevo stock: " . ($libro['stock'] - 1)
+);
 
 // Obtener información completa del lector
 $sql_lector_info = "SELECT * FROM lectores WHERE id = ?";
@@ -96,9 +183,22 @@ $lector = mysqli_fetch_assoc($result_lector_info);
 // Generar número de recibo
 $numero_recibo = 'REC-' . str_pad($id_prestamo, 6, '0', STR_PAD_LEFT) . '-' . date('Ymd');
 
+// 11. REGISTRAR RECIBO GENERADO
+$db->registrarAccion(
+    'recibo_generado', 
+    'prestamos', 
+    "Recibo generado: {$numero_recibo} para préstamo ID: {$id_prestamo}"
+);
+
 // Limpiar sesión después de usar
 unset($_SESSION['datos_prestamo']);
 
+// 12. REGISTRAR PROCESO COMPLETADO
+$db->registrarAccion(
+    'proceso_completado', 
+    'prestamos', 
+    "Préstamo completado exitosamente - ID: {$id_prestamo}, Recibo: {$numero_recibo}"
+);
 ?>
 
 <div class="row">

@@ -1,7 +1,9 @@
 <?php
 // editar_libro.php
-session_start();
+
+// 1. VERIFICACIÓN DE ACCESO (AGREGAR ESTO AL INICIO)
 require_once 'db.php';
+verificarAutenticacion(); // ← ESTA LÍNEA ES NUEVA
 
 // Configurar variables para layout
 $titulo_pagina = '✏️ Editar Libro';
@@ -11,13 +13,20 @@ $mensaje_exito = '';
 $mensaje_error = '';
 $errores = [];
 
+// 2. REGISTRAR ACCESO A EDICIÓN
+$db->registrarAccion('acceso_edicion', 'catalogo', "Accedió a editar libro");
+
 // Verificar que se haya proporcionado ID
 if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
+    $db->registrarAccion('error_id', 'catalogo', "Intento de editar sin ID válido");
     header('Location: catalogo_libros.php');
     exit;
 }
 
 $id_libro = intval($_GET['id']);
+
+// 3. REGISTRAR CONSULTA DE LIBRO
+$db->registrarAccion('consulta_libro', 'catalogo', "Consultando datos del libro ID: {$id_libro}");
 
 // Obtener categorías (usando el mismo método consistente)
 $sql_categorias = "SELECT id, nombre FROM categorias ORDER BY nombre";
@@ -35,9 +44,18 @@ $result_libro = $stmt_libro->get_result();
 $libro = $result_libro->fetch_assoc();
 
 if (!$libro) {
+    // 4. REGISTRAR LIBRO NO ENCONTRADO
+    $db->registrarAccion('libro_no_encontrado', 'catalogo', "Libro ID: {$id_libro} no encontrado o inactivo");
     header('Location: catalogo_libros.php');
     exit;
 }
+
+// 5. REGISTRAR LIBRO ENCONTRADO
+$db->registrarAccion(
+    'libro_encontrado', 
+    'catalogo', 
+    "Editando libro - ID: {$id_libro}, Título: '{$libro['titulo']}', Código: {$libro['codigo_interno']}"
+);
 
 // Obtener categorías actuales del libro
 $sql_cats_libro = "SELECT id_categoria FROM libro_categoria WHERE id_libro = ?";
@@ -50,6 +68,14 @@ while ($row = $result_cats->fetch_assoc()) {
 
 // Procesar actualización
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actualizar_libro'])) {
+    
+    // 6. REGISTRAR INICIO DE ACTUALIZACIÓN
+    $db->registrarAccion('inicio_actualizacion', 'catalogo', "Iniciando actualización del libro ID: {$id_libro}");
+    
+    // Guardar datos antes del cambio
+    $datos_antes = $libro;
+    $categorias_antes = $categorias_actuales;
+    
     $codigo_interno = trim($_POST['codigo_interno'] ?? '');
     $titulo = trim($_POST['titulo'] ?? '');
     $autor = trim($_POST['autor'] ?? '');
@@ -58,16 +84,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actualizar_libro'])) 
     $stock = intval($_POST['stock'] ?? 1);
     $categorias_seleccionadas = $_POST['categorias'] ?? [];
     
+    // 7. REGISTRAR DATOS RECIBIDOS
+    $db->registrarAccion(
+        'datos_recibidos', 
+        'catalogo', 
+        "Datos recibidos para libro ID: {$id_libro} - " .
+        "Título: '{$titulo}', Autor: '{$autor}', Stock: {$stock}, " .
+        "Categorías seleccionadas: " . count($categorias_seleccionadas)
+    );
+    
     // VALIDACIONES
+    $errores_validacion = [];
+    
     // 1. Campos obligatorios
     if (empty($codigo_interno)) {
-        $errores[] = "El código interno es obligatorio.";
+        $errores_validacion[] = "código interno";
     }
     if (empty($titulo)) {
-        $errores[] = "El título es obligatorio.";
+        $errores_validacion[] = "título";
     }
     if (empty($autor)) {
-        $errores[] = "El autor es obligatorio.";
+        $errores_validacion[] = "autor";
+    }
+    
+    if (!empty($errores_validacion)) {
+        $db->registrarAccion(
+            'validacion_campos', 
+            'catalogo', 
+            "Validación fallida - Campos vacíos: " . implode(', ', $errores_validacion)
+        );
+        $errores[] = "Los siguientes campos son obligatorios: " . implode(', ', $errores_validacion);
     }
     
     // 2. Validar código interno único (excluyendo el libro actual)
@@ -76,6 +122,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actualizar_libro'])) 
         $stmt_check = $db->query($sql_check_codigo, [$codigo_interno, $id_libro]);
         $result_check = $stmt_check->get_result();
         if ($result_check->num_rows > 0) {
+            $db->registrarAccion(
+                'error_codigo_duplicado', 
+                'catalogo', 
+                "Código duplicado: '{$codigo_interno}' para libro ID: {$id_libro}"
+            );
             $errores[] = "El código interno '$codigo_interno' ya existe en el catálogo.";
         }
         $result_check->free();
@@ -88,6 +139,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actualizar_libro'])) 
         $result_check_isbn = $stmt_check_isbn->get_result();
         if ($result_check_isbn->num_rows > 0) {
             $libro_existente = $result_check_isbn->fetch_assoc();
+            $db->registrarAccion(
+                'error_isbn_duplicado', 
+                'catalogo', 
+                "ISBN duplicado: '{$isbn}' - Ya existe en libro ID: {$libro_existente['id']}"
+            );
             $errores[] = "El ISBN '$isbn' ya está registrado para el libro: " . 
                         htmlspecialchars($libro_existente['titulo']) . ".";
         }
@@ -98,18 +154,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actualizar_libro'])) 
     if (!empty($ano_publicacion)) {
         $ano_actual = date('Y');
         if ($ano_publicacion < 1000 || $ano_publicacion > $ano_actual) {
+            $db->registrarAccion(
+                'error_ano_invalido', 
+                'catalogo', 
+                "Año de publicación inválido: {$ano_publicacion}"
+            );
             $errores[] = "El año de publicación debe estar entre 1000 y $ano_actual.";
         }
     }
     
     // 5. Validar stock
     if ($stock < 0 || $stock > 1000) {
+        $db->registrarAccion(
+            'error_stock_invalido', 
+            'catalogo', 
+            "Stock inválido: {$stock} (debe ser 0-1000)"
+        );
         $errores[] = "El stock debe estar entre 0 y 1000.";
     }
     
     // Si no hay errores, actualizar
     if (empty($errores)) {
         try {
+            // 8. REGISTRAR INICIO DE TRANSACCIÓN
+            $db->registrarAccion('inicio_transaccion', 'catalogo', "Iniciando transacción para libro ID: {$id_libro}");
+            
             // Iniciar transacción
             $link->begin_transaction();
             
@@ -137,9 +206,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actualizar_libro'])) 
                 throw new Exception("Error al actualizar el libro.");
             }
             
+            // 9. REGISTRAR LIBRO ACTUALIZADO
+            $db->registrarAccion(
+                'libro_actualizado_bd', 
+                'catalogo', 
+                "Libro actualizado en BD - ID: {$id_libro}"
+            );
+            
             // Eliminar categorías actuales
             $sql_delete_cats = "DELETE FROM libro_categoria WHERE id_libro = ?";
             $db->query($sql_delete_cats, [$id_libro]);
+            
+            // 10. REGISTRAR CATEGORÍAS ELIMINADAS
+            if (!empty($categorias_antes)) {
+                $db->registrarAccion(
+                    'categorias_eliminadas', 
+                    'catalogo', 
+                    "Categorías anteriores eliminadas para libro ID: {$id_libro}"
+                );
+            }
             
             // Asignar nuevas categorías
             if (!empty($categorias_seleccionadas)) {
@@ -149,12 +234,73 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actualizar_libro'])) 
                         $db->query($sql_cat, [$id_libro, $id_categoria]);
                     }
                 }
+                
+                // 11. REGISTRAR CATEGORÍAS ASIGNADAS
+                $db->registrarAccion(
+                    'categorias_asignadas', 
+                    'catalogo', 
+                    count($categorias_seleccionadas) . " categorías asignadas a libro ID: {$id_libro}"
+                );
             }
             
             // Confirmar transacción
             $link->commit();
             
+            // 12. REGISTRAR TRANSACCIÓN EXITOSA
+            $db->registrarAccion(
+                'transaccion_exitosa', 
+                'catalogo', 
+                "Transacción completada exitosamente para libro ID: {$id_libro}"
+            );
+            
             $mensaje_exito = "Libro '$titulo' actualizado exitosamente.";
+            
+            // 13. REGISTRAR CAMBIOS DETALLADOS
+            $cambios = [];
+            if ($datos_antes['titulo'] != $titulo) {
+                $cambios[] = "título: '{$datos_antes['titulo']}' → '{$titulo}'";
+            }
+            if ($datos_antes['autor'] != $autor) {
+                $cambios[] = "autor: '{$datos_antes['autor']}' → '{$autor}'";
+            }
+            if ($datos_antes['codigo_interno'] != $codigo_interno) {
+                $cambios[] = "código: '{$datos_antes['codigo_interno']}' → '{$codigo_interno}'";
+            }
+            if ($datos_antes['isbn'] != $isbn) {
+                $cambios[] = "ISBN: '{$datos_antes['isbn']}' → '{$isbn}'";
+            }
+            if ($datos_antes['stock'] != $stock) {
+                $cambios[] = "stock: {$datos_antes['stock']} → {$stock}";
+            }
+            if ($datos_antes['año_publicacion'] != $ano_publicacion) {
+                $cambios[] = "año: '{$datos_antes['año_publicacion']}' → '{$ano_publicacion}'";
+            }
+            
+            // Comparar categorías
+            $categorias_antes_nombres = [];
+            $categorias_despues_nombres = [];
+            
+            foreach ($categorias as $cat) {
+                if (in_array($cat['id'], $categorias_antes)) {
+                    $categorias_antes_nombres[] = $cat['nombre'];
+                }
+                if (in_array($cat['id'], $categorias_seleccionadas)) {
+                    $categorias_despues_nombres[] = $cat['nombre'];
+                }
+            }
+            
+            if (implode(',', $categorias_antes) != implode(',', $categorias_seleccionadas)) {
+                $cambios[] = "categorías: [" . implode(', ', $categorias_antes_nombres) . 
+                            "] → [" . implode(', ', $categorias_despues_nombres) . "]";
+            }
+            
+            if (!empty($cambios)) {
+                $db->registrarAccion(
+                    'cambios_detallados', 
+                    'catalogo', 
+                    "Cambios en libro ID: {$id_libro} - " . implode('; ', $cambios)
+                );
+            }
             
             // Actualizar datos del libro en memoria
             $libro['codigo_interno'] = $codigo_interno;
@@ -168,10 +314,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actualizar_libro'])) 
             $categorias_actuales = $categorias_seleccionadas;
             
         } catch (Exception $e) {
+            // 14. REGISTRAR ERROR EN TRANSACCIÓN
             $link->rollback();
+            
+            $db->registrarAccion(
+                'error_transaccion', 
+                'catalogo', 
+                "Error en transacción - Libro ID: {$id_libro}, Mensaje: " . $e->getMessage()
+            );
+            
             $mensaje_error = "Error al actualizar el libro: " . $e->getMessage();
         }
     } else {
+        // 15. REGISTRAR ERRORES DE VALIDACIÓN
+        $db->registrarAccion(
+            'validacion_fallida', 
+            'catalogo', 
+            "Validación fallida para libro ID: {$id_libro} - " . count($errores) . " errores"
+        );
+        
         $mensaje_error = implode("<br>", $errores);
     }
 }
@@ -185,8 +346,17 @@ $stmt_prestamos = $db->query($sql_prestamos, [$id_libro]);
 $result_prestamos = $stmt_prestamos->get_result();
 $prestamos = $result_prestamos->fetch_assoc();
 
+// 16. REGISTRAR ESTADÍSTICAS OBTENIDAS
+$db->registrarAccion(
+    'estadisticas_prestamos', 
+    'catalogo', 
+    "Estadísticas préstamos libro ID: {$id_libro} - " .
+    "Total: {$prestamos['total_prestamos']}, Activos: {$prestamos['prestamos_activos']}"
+);
+
 ob_start();
 ?>
+
 
 <!-- BREADCRUMB -->
 <nav aria-label="breadcrumb" class="mb-4">

@@ -1,7 +1,12 @@
 <?php
-// catalogo_libros.php
-session_start();
+// catalogo_libros.php - VERSIÓN MODIFICADA
+
+// 1. VERIFICACIÓN DE ACCESO (AGREGAR ESTO AL INICIO)
 require_once 'db.php';
+verificarAutenticacion(); // ← ESTA LÍNEA ES NUEVA
+
+// 2. REGISTRAR ACCESO A ESTA PÁGINA
+$db->registrarAccion('acceso', 'catalogo', "Accedió al catálogo de libros");
 
 // Configurar variables para layout
 $titulo_pagina = '📚 Catálogo de Libros';
@@ -10,9 +15,21 @@ $icono_titulo = 'fas fa-book-open';
 $mensaje_exito = '';
 $mensaje_error = '';
 
-// Procesar eliminación de libro
+// 3. PROCESAR ELIMINACIÓN DE LIBRO (CON LOGS DETALLADOS)
 if (isset($_GET['eliminar']) && is_numeric($_GET['eliminar'])) {
     $id_eliminar = intval($_GET['eliminar']);
+    
+    // 4. REGISTRAR INTENTO DE ELIMINACIÓN
+    $db->registrarAccion(
+        'intento_eliminar', 
+        'catalogo', 
+        "Intentando eliminar libro ID: {$id_eliminar}"
+    );
+    
+    // Obtener información del libro antes de eliminar
+    $sql_info = "SELECT titulo, codigo_interno FROM libros WHERE id = ?";
+    $stmt_info = $db->query($sql_info, [$id_eliminar]);
+    $libro_info = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt_info));
     
     // Verificar si el libro tiene préstamos activos
     $sql_check_prestamos = "SELECT COUNT(*) as total FROM prestamos WHERE id_libro = ? AND devuelto = 0";
@@ -21,6 +38,13 @@ if (isset($_GET['eliminar']) && is_numeric($_GET['eliminar'])) {
     $row_check = mysqli_fetch_assoc($result_check);
     
     if ($row_check['total'] > 0) {
+        // 5. REGISTRAR ERROR POR PRÉSTAMOS ACTIVOS
+        $db->registrarAccion(
+            'error_eliminacion', 
+            'catalogo', 
+            "No se puede eliminar libro ID: {$id_eliminar} - Tiene {$row_check['total']} préstamos activos"
+        );
+        
         $mensaje_error = "No se puede eliminar el libro porque tiene préstamos activos.";
     } else {
         // Eliminación lógica (actualizar activo = 0)
@@ -28,8 +52,24 @@ if (isset($_GET['eliminar']) && is_numeric($_GET['eliminar'])) {
         $stmt_eliminar = $db->query($sql_eliminar, [$id_eliminar]);
         
         if ($stmt_eliminar && mysqli_stmt_affected_rows($stmt_eliminar) > 0) {
+            // 6. REGISTRAR ELIMINACIÓN EXITOSA
+            $db->registrarAccion(
+                'eliminacion_exitosa', 
+                'catalogo', 
+                "Libro eliminado/archivado ID: {$id_eliminar} - " .
+                "Título: '{$libro_info['titulo']}', " .
+                "Código: {$libro_info['codigo_interno']}"
+            );
+            
             $mensaje_exito = "Libro eliminado correctamente (archivado).";
         } else {
+            // 7. REGISTRAR ERROR EN ELIMINACIÓN
+            $db->registrarAccion(
+                'error_eliminacion_bd', 
+                'catalogo', 
+                "Error al eliminar libro ID: {$id_eliminar}"
+            );
+            
             $mensaje_error = "Error al eliminar el libro.";
         }
     }
@@ -49,6 +89,35 @@ $categoria_filtro = $_GET['categoria'] ?? '';
 $stock_filtro = $_GET['stock'] ?? '';
 $pagina = max(1, intval($_GET['pagina'] ?? 1));
 $por_pagina = 20; // Libros por página
+
+// 8. REGISTRAR FILTROS APLICADOS
+$filtros_aplicados = [];
+if (!empty($busqueda)) {
+    $filtros_aplicados[] = "Búsqueda: '{$busqueda}'";
+}
+if (!empty($categoria_filtro) && is_numeric($categoria_filtro)) {
+    // Obtener nombre de la categoría
+    foreach ($categorias as $cat) {
+        if ($cat['id'] == $categoria_filtro) {
+            $filtros_aplicados[] = "Categoría: {$cat['nombre']}";
+            break;
+        }
+    }
+}
+if (!empty($stock_filtro)) {
+    $filtros_aplicados[] = "Stock: " . ($stock_filtro == 'disponible' ? 'Disponibles' : 'Agotados');
+}
+if ($pagina > 1) {
+    $filtros_aplicados[] = "Página: {$pagina}";
+}
+
+if (!empty($filtros_aplicados)) {
+    $db->registrarAccion(
+        'filtros_catalogo', 
+        'catalogo', 
+        "Filtros aplicados al catálogo: " . implode(', ', $filtros_aplicados)
+    );
+}
 
 // Construir consulta base con filtros
 $condiciones = ["l.activo = 1"];
@@ -93,6 +162,15 @@ $total_libros = $row_count['total'];
 $total_paginas = ceil($total_libros / $por_pagina);
 $offset = ($pagina - 1) * $por_pagina;
 
+// 9. REGISTRAR ESTADÍSTICAS DE CONSULTA
+$db->registrarAccion(
+    'consulta_catalogo', 
+    'catalogo', 
+    "Consultando catálogo - Total libros: {$total_libros}, " .
+    "Página {$pagina}/{$total_paginas}, " .
+    "Mostrando {$por_pagina} por página"
+);
+
 // Obtener libros con filtros y paginación
 $sql_libros = "SELECT l.*, GROUP_CONCAT(c.nombre SEPARATOR ', ') as categorias_nombres,
                GROUP_CONCAT(c.id SEPARATOR ',') as categorias_ids
@@ -114,6 +192,14 @@ while ($row = mysqli_fetch_assoc($result_libros)) {
     $libros[] = $row;
 }
 
+// 10. REGISTRAR RESULTADO DE CONSULTA
+$num_libros = count($libros);
+$db->registrarAccion(
+    'consulta_exitosa', 
+    'catalogo', 
+    "Catálogo consultado - {$num_libros} libros encontrados"
+);
+
 // Estadísticas
 $sql_stats = "SELECT 
                SUM(stock) as total_stock,
@@ -122,6 +208,80 @@ $sql_stats = "SELECT
                FROM libros WHERE activo = 1";
 $result_stats = mysqli_query($link, $sql_stats);
 $stats = mysqli_fetch_assoc($result_stats);
+
+// 11. REGISTRAR ESTADÍSTICAS OBTENIDAS
+$db->registrarAccion(
+    'estadisticas_catalogo', 
+    'catalogo', 
+    "Estadísticas del catálogo - " .
+    "Total stock: {$stats['total_stock']}, " .
+    "Disponibles: {$stats['libros_disponibles']}, " .
+    "Agotados: {$stats['libros_agotados']}"
+);
+
+// 12. AGREGAR LOGS PARA ACCIONES ADICIONALES (si las tienes)
+// Por ejemplo, si tienes botón para exportar catálogo
+if (isset($_GET['exportar']) && $_GET['exportar'] == 'csv') {
+    $db->registrarAccion(
+        'exportacion_catalogo', 
+        'catalogo', 
+        "Exportando catálogo a CSV - {$total_libros} libros"
+    );
+    
+    // ... tu código de exportación ...
+    
+    $db->registrarAccion(
+        'exportacion_completada', 
+        'catalogo', 
+        "Catálogo exportado exitosamente - {$total_libros} libros"
+    );
+}
+
+// 13. PARA AGREGAR/EDITAR LIBROS DESDE ESTA MISMA PÁGINA (si aplica)
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (isset($_POST['agregar_libro'])) {
+        $titulo = trim($_POST['titulo'] ?? '');
+        $autor = trim($_POST['autor'] ?? '');
+        $codigo = trim($_POST['codigo'] ?? '');
+        
+        $db->registrarAccion(
+            'intento_agregar', 
+            'catalogo', 
+            "Intentando agregar nuevo libro - Título: '{$titulo}', Autor: '{$autor}'"
+        );
+        
+        // ... tu código para agregar ...
+        
+        $nuevo_id = mysqli_insert_id($link);
+        $db->registrarAccion(
+            'libro_agregado', 
+            'catalogo', 
+            "Libro agregado exitosamente ID: {$nuevo_id} - '{$titulo}'"
+        );
+        
+    } elseif (isset($_POST['editar_libro'])) {
+        $libro_id = $_POST['id'] ?? 0;
+        
+        $db->registrarAccion(
+            'intento_editar', 
+            'catalogo', 
+            "Intentando editar libro ID: {$libro_id}"
+        );
+        
+        // Obtener datos antes del cambio (para comparar)
+        $sql_antes = "SELECT * FROM libros WHERE id = ?";
+        $stmt_antes = $db->query($sql_antes, [$libro_id]);
+        $datos_antes = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt_antes));
+        
+        
+        $db->registrarAccion(
+            'libro_editado', 
+            'catalogo', 
+            "Libro editado ID: {$libro_id} - " .
+            "Cambios realizados: [detalles de cambios]"
+        );
+    }
+}
 
 ob_start();
 ?>

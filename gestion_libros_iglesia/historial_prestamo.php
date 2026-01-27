@@ -1,5 +1,12 @@
 <?php
+// historial_prestamos.php
+
+// 1. VERIFICACIÓN DE ACCESO (AGREGAR ESTO AL INICIO)
 require_once 'db.php';
+verificarAutenticacion(); // ← ESTA LÍNEA ES NUEVA
+
+// 2. REGISTRAR ACCESO A ESTA PÁGINA
+$db->registrarAccion('acceso', 'historial', "Accedió al historial de préstamos");
 
 // Configurar variables para layout
 $titulo_pagina = '📜 Historial de Préstamos';
@@ -11,6 +18,32 @@ $filtro_estado = $_GET['estado'] ?? 'todos'; // todos, activos, devueltos, venci
 $filtro_fecha_desde = $_GET['fecha_desde'] ?? '';
 $filtro_fecha_hasta = $_GET['fecha_hasta'] ?? '';
 $busqueda_texto = $_GET['q'] ?? '';
+
+// 3. REGISTRAR FILTROS APLICADOS
+$filtros_aplicados = [];
+if (!empty($filtro_lector) && $filtro_lector !== 'todos') {
+    $filtros_aplicados[] = "Lector ID: {$filtro_lector}";
+}
+if ($filtro_estado !== 'todos') {
+    $filtros_aplicados[] = "Estado: {$filtro_estado}";
+}
+if (!empty($filtro_fecha_desde)) {
+    $filtros_aplicados[] = "Desde: {$filtro_fecha_desde}";
+}
+if (!empty($filtro_fecha_hasta)) {
+    $filtros_aplicados[] = "Hasta: {$filtro_fecha_hasta}";
+}
+if (!empty($busqueda_texto)) {
+    $filtros_aplicados[] = "Búsqueda: '{$busqueda_texto}'";
+}
+
+if (!empty($filtros_aplicados)) {
+    $db->registrarAccion(
+        'filtros_historial', 
+        'historial', 
+        "Filtros aplicados al historial: " . implode(', ', $filtros_aplicados)
+    );
+}
 
 // Construir consulta con filtros
 $where_conditions = [];
@@ -80,6 +113,13 @@ $query = "SELECT p.*, l.titulo, l.autor, l.codigo_interno, l.isbn,
           {$where_sql}
           ORDER BY p.fecha_prestamo DESC, p.id DESC";
 
+// 4. REGISTRAR CONSULTA DE HISTORIAL
+$db->registrarAccion(
+    'consulta_historial', 
+    'historial', 
+    "Consultando historial con " . count($where_conditions) . " filtros, " . count($params) . " parámetros"
+);
+
 // Obtener total de registros
 $query_count = "SELECT COUNT(*) as total FROM prestamos p
                 JOIN libros l ON p.id_libro = l.id
@@ -96,6 +136,13 @@ mysqli_stmt_bind_result($result_count, $total_registros);
 mysqli_stmt_fetch($result_count);
 mysqli_stmt_close($result_count);
 
+// 5. REGISTRAR TOTAL OBTENIDO
+$db->registrarAccion(
+    'total_obtenido', 
+    'historial', 
+    "Total de registros en historial: {$total_registros}"
+);
+
 // Ejecutar consulta principal SIN límites (DataTables manejará la paginación)
 $stmt = mysqli_prepare($link, $query);
 if (!empty($params) && !empty($where_conditions)) {
@@ -104,13 +151,71 @@ if (!empty($params) && !empty($where_conditions)) {
 mysqli_stmt_execute($stmt);
 $result = mysqli_stmt_get_result($stmt);
 
+// Verificar si hubo error
+if (!$result) {
+    // 6. REGISTRAR ERROR EN CONSULTA
+    $db->registrarAccion(
+        'error_consulta', 
+        'historial', 
+        "Error en consulta de historial: " . mysqli_error($link)
+    );
+} else {
+    $registros_obtenidos = mysqli_num_rows($result);
+    
+    // 7. REGISTRAR CONSULTA EXITOSA
+    $db->registrarAccion(
+        'consulta_exitosa', 
+        'historial', 
+        "Historial consultado exitosamente - {$registros_obtenidos} registros encontrados"
+    );
+}
+
 // Obtener lista de lectores para el filtro
 $query_lectores = "SELECT id, nombre, apellido, email FROM lectores ORDER BY nombre, apellido";
 $result_lectores = mysqli_query($link, $query_lectores);
 
+// 8. AGREGAR LOGS PARA ACCIONES ESPECÍFICAS (si las tienes en esta página)
+// Por ejemplo, si exportas el historial
+if (isset($_GET['exportar']) && $_GET['exportar'] == 'csv') {
+    
+    $db->registrarAccion(
+        'exportacion_inicio', 
+        'historial', 
+        "Iniciando exportación CSV del historial"
+    );
+    
+    // ... tu código de exportación ...
+    
+    $db->registrarAccion(
+        'exportacion_exitosa', 
+        'historial', 
+        "Exportación CSV completada - {$total_registros} registros exportados"
+    );
+}
+
+// 9. Si procesas devoluciones desde el historial también
+if (isset($_GET['marcar_devuelto']) && is_numeric($_GET['marcar_devuelto'])) {
+    $prestamo_id = $_GET['marcar_devuelto'];
+    
+    $db->registrarAccion(
+        'devolucion_desde_historial', 
+        'historial', 
+        "Marcando devolución desde historial - Préstamo ID: {$prestamo_id}"
+    );
+    
+    // ... tu código para marcar como devuelto ...
+    
+    $db->registrarAccion(
+        'devolucion_completada', 
+        'historial', 
+        "Devolución marcada desde historial - Préstamo ID: {$prestamo_id}"
+    );
+}
+
 // Iniciar buffer para contenido
 ob_start();
 ?>
+
 <div class="row">
     <!-- FILTROS -->
     <div class="col-md-3 mb-4">
