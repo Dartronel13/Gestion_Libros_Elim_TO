@@ -17,18 +17,21 @@ $where_conditions = [];
 $params = [];
 $types = '';
 
+// CORRECCIÓN: Solo agregar filtro si NO es "todos" y no está vacío
 if (!empty($filtro_lector) && $filtro_lector !== 'todos') {
     $where_conditions[] = "p.id_lector = ?";
     $params[] = $filtro_lector;
     $types .= 'i';
 }
 
-if ($filtro_estado === 'activos') {
-    $where_conditions[] = "p.devuelto = 0";
-} elseif ($filtro_estado === 'devueltos') {
-    $where_conditions[] = "p.devuelto = 1";
-} elseif ($filtro_estado === 'vencidos') {
-    $where_conditions[] = "p.devuelto = 0 AND p.fecha_devolucion < CURDATE()";
+if ($filtro_estado !== 'todos') {
+    if ($filtro_estado === 'activos') {
+        $where_conditions[] = "p.devuelto = 0";
+    } elseif ($filtro_estado === 'devueltos') {
+        $where_conditions[] = "p.devuelto = 1";
+    } elseif ($filtro_estado === 'vencidos') {
+        $where_conditions[] = "p.devuelto = 0 AND p.fecha_devolucion < CURDATE()";
+    }
 }
 
 if (!empty($filtro_fecha_desde)) {
@@ -43,18 +46,21 @@ if (!empty($filtro_fecha_hasta)) {
     $types .= 's';
 }
 
+// CORRECCIÓN: Búsqueda de texto - parámetros correctos
 if (!empty($busqueda_texto)) {
     $where_conditions[] = "(l.titulo LIKE ? OR l.autor LIKE ? OR l.codigo_interno LIKE ? OR lec.nombre LIKE ? OR lec.apellido LIKE ?)";
     $busqueda_like = "%{$busqueda_texto}%";
-    for ($i = 0; $i < 5; $i++) {
-        $params[] = $busqueda_like;
-        $types .= 's';
-    }
+    $params[] = $busqueda_like;
+    $params[] = $busqueda_like;
+    $params[] = $busqueda_like;
+    $params[] = $busqueda_like;
+    $params[] = $busqueda_like;
+    $types .= 'sssss'; // CORREGIDO: 5 's' para 5 parámetros
 }
 
 $where_sql = !empty($where_conditions) ? 'WHERE ' . implode(' AND ', $where_conditions) : '';
 
-// Consulta principal
+// Consulta principal SIN límites para DataTables
 $query = "SELECT p.*, l.titulo, l.autor, l.codigo_interno, l.isbn,
                  lec.nombre, lec.apellido, lec.email,
                  DATEDIFF(p.fecha_devolucion, CURDATE()) as dias_restantes,
@@ -74,28 +80,25 @@ $query = "SELECT p.*, l.titulo, l.autor, l.codigo_interno, l.isbn,
           {$where_sql}
           ORDER BY p.fecha_prestamo DESC, p.id DESC";
 
-// Obtener total de registros para paginación
+// Obtener total de registros
 $query_count = "SELECT COUNT(*) as total FROM prestamos p
                 JOIN libros l ON p.id_libro = l.id
                 LEFT JOIN lectores lec ON p.id_lector = lec.id
                 {$where_sql}";
-$result_count = mysqli_query($link, $query_count);
-$total_registros = mysqli_fetch_assoc($result_count)['total'];
+                
+// Para la consulta COUNT
+$result_count = mysqli_prepare($link, $query_count);
+if (!empty($params) && !empty($where_conditions)) {
+    mysqli_stmt_bind_param($result_count, $types, ...$params);
+}
+mysqli_stmt_execute($result_count);
+mysqli_stmt_bind_result($result_count, $total_registros);
+mysqli_stmt_fetch($result_count);
+mysqli_stmt_close($result_count);
 
-// Aplicar límites para paginación
-$por_pagina = 20;
-$pagina_actual = $_GET['pagina'] ?? 1;
-$offset = ($pagina_actual - 1) * $por_pagina;
-$total_paginas = ceil($total_registros / $por_pagina);
-
-$query .= " LIMIT ? OFFSET ?";
-$params[] = $por_pagina;
-$params[] = $offset;
-$types .= 'ii';
-
-// Ejecutar consulta con parámetros
+// Ejecutar consulta principal SIN límites (DataTables manejará la paginación)
 $stmt = mysqli_prepare($link, $query);
-if (!empty($params)) {
+if (!empty($params) && !empty($where_conditions)) {
     mysqli_stmt_bind_param($stmt, $types, ...$params);
 }
 mysqli_stmt_execute($stmt);
@@ -122,7 +125,11 @@ ob_start();
                         <label for="lector_id" class="form-label">Filtrar por persona</label>
                         <select class="form-select" id="lector_id" name="lector_id">
                             <option value="todos">Todas las personas</option>
-                            <?php while($lector = mysqli_fetch_assoc($result_lectores)): ?>
+                            <?php 
+                            // Resetear puntero del resultado para usarlo nuevamente
+                            mysqli_data_seek($result_lectores, 0);
+                            while($lector = mysqli_fetch_assoc($result_lectores)): 
+                            ?>
                                 <option value="<?= $lector['id'] ?>" 
                                     <?= $filtro_lector == $lector['id'] ? 'selected' : '' ?>>
                                     <?= htmlspecialchars($lector['nombre'] . ' ' . $lector['apellido']) ?>
@@ -185,19 +192,21 @@ ob_start();
                             <span>Total registros:</span>
                             <strong><?= number_format($total_registros) ?></strong>
                         </div>
-                        <div class="d-flex justify-content-between mb-1">
-                            <span>Página actual:</span>
-                            <strong><?= $pagina_actual ?> de <?= $total_paginas ?></strong>
-                        </div>
                         <?php if (!empty($filtro_lector) && $filtro_lector !== 'todos'): 
-                            $lector_info = mysqli_fetch_assoc(mysqli_query($link, 
-                                "SELECT nombre, apellido FROM lectores WHERE id = $filtro_lector"));
+                            // Resetear la conexión para nueva consulta
+                            $lector_info_query = mysqli_query($link, 
+                                "SELECT nombre, apellido FROM lectores WHERE id = " . intval($filtro_lector));
+                            if ($lector_info_query && mysqli_num_rows($lector_info_query) > 0) {
+                                $lector_info = mysqli_fetch_assoc($lector_info_query);
                         ?>
                         <div class="d-flex justify-content-between">
                             <span>Filtrado por:</span>
-                            <strong><?= $lector_info['nombre'] . ' ' . $lector_info['apellido'] ?></strong>
+                            <strong><?= htmlspecialchars($lector_info['nombre'] . ' ' . $lector_info['apellido']) ?></strong>
                         </div>
-                        <?php endif; ?>
+                        <?php 
+                            }
+                        endif; 
+                        ?>
                     </div>
                 </div>
             </div>
@@ -241,23 +250,23 @@ ob_start();
                 </div>
             </div>
             <div class="card-body">
-                <?php if (mysqli_num_rows($result) > 0): ?>
+                <?php if ($total_registros > 0): ?>
                     <div class="table-responsive" id="tabla-historial">
-                        <table class="table table-hover data-table">
+                        <table class="table table-hover" id="tabla-prestamos">
                             <thead>
                                 <tr>
-                                    <th>#</th>
-                                    <th>Libro</th>
-                                    <th>Persona</th>
-                                    <th>Fechas</th>
-                                    <th>Estado</th>
-                                    <th>Código</th>
-                                    <th>Acciones</th>
+                                    <th width="5%">#</th>
+                                    <th width="25%">Libro</th>
+                                    <th width="20%">Persona</th>
+                                    <th width="15%">Fechas</th>
+                                    <th width="10%">Estado</th>
+                                    <th width="15%">Código</th>
+                                    <th width="10%" class="text-center">Acciones</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <?php 
-                                $contador = $offset + 1;
+                                $contador = 1;
                                 while($prestamo = mysqli_fetch_assoc($result)): 
                                     $fecha_prestamo = date('d/m/Y', strtotime($prestamo['fecha_prestamo']));
                                     $fecha_devolucion = date('d/m/Y', strtotime($prestamo['fecha_devolucion']));
@@ -273,8 +282,8 @@ ob_start();
                                         <small class="text-muted"><?= $prestamo['email'] ?></small>
                                     </td>
                                     <td>
-                                        <div><strong>Préstamo:</strong> <?= $fecha_prestamo ?></div>
-                                        <div><strong>Devolución:</strong> <?= $fecha_devolucion ?></div>
+                                        <div><small><strong>Préstamo:</strong> <?= $fecha_prestamo ?></small></div>
+                                        <div><small><strong>Devolución:</strong> <?= $fecha_devolucion ?></small></div>
                                         <?php if ($prestamo['estado_texto'] == 'ACTIVO'): ?>
                                             <small class="text-<?= $prestamo['dias_restantes'] <= 3 ? 'warning' : 'success' ?>">
                                                 <?= $prestamo['dias_restantes'] ?> días restantes
@@ -292,15 +301,15 @@ ob_start();
                                             <br><small class="text-muted">ISBN: <?= $prestamo['isbn'] ?></small>
                                         <?php endif; ?>
                                     </td>
-                                    <td>
+                                    <td class="text-center">
                                         <?php if ($prestamo['estado_texto'] == 'ACTIVO' || $prestamo['estado_texto'] == 'VENCIDO'): ?>
-                                            <a href="devolucion_libro.php?codigo=<?= $prestamo['isbn'] ?: $prestamo['codigo_interno'] ?>" 
-                                               class="btn btn-sm btn-success" title="Registrar devolución">
+                                            <a href="devolucion_libro.php?codigo=<?= urlencode($prestamo['isbn'] ?: $prestamo['codigo_interno']) ?>" 
+                                               class="btn btn-sm btn-success mb-1" title="Registrar devolución">
                                                 <i class="fas fa-check"></i>
                                             </a>
                                         <?php endif; ?>
-                                        <button class="btn btn-sm btn-info" 
-                                                onclick="verDetalles(<?= $prestamo['id'] ?>)" 
+                                        <button class="btn btn-sm btn-info ver-detalles" 
+                                                data-id="<?= $prestamo['id'] ?>" 
                                                 title="Ver detalles">
                                             <i class="fas fa-eye"></i>
                                         </button>
@@ -310,42 +319,6 @@ ob_start();
                             </tbody>
                         </table>
                     </div>
-                    
-                    <!-- PAGINACIÓN -->
-                    <?php if ($total_paginas > 1): ?>
-                    <nav aria-label="Paginación" class="mt-4">
-                        <ul class="pagination justify-content-center">
-                            <?php if ($pagina_actual > 1): ?>
-                                <li class="page-item">
-                                    <a class="page-link" href="?<?= http_build_query(array_merge($_GET, ['pagina' => $pagina_actual - 1])) ?>">
-                                        <i class="fas fa-chevron-left"></i>
-                                    </a>
-                                </li>
-                            <?php endif; ?>
-                            
-                            <?php
-                            $inicio = max(1, $pagina_actual - 2);
-                            $fin = min($total_paginas, $pagina_actual + 2);
-                            
-                            for ($i = $inicio; $i <= $fin; $i++):
-                            ?>
-                                <li class="page-item <?= $i == $pagina_actual ? 'active' : '' ?>">
-                                    <a class="page-link" href="?<?= http_build_query(array_merge($_GET, ['pagina' => $i])) ?>">
-                                        <?= $i ?>
-                                    </a>
-                                </li>
-                            <?php endfor; ?>
-                            
-                            <?php if ($pagina_actual < $total_paginas): ?>
-                                <li class="page-item">
-                                    <a class="page-link" href="?<?= http_build_query(array_merge($_GET, ['pagina' => $pagina_actual + 1])) ?>">
-                                        <i class="fas fa-chevron-right"></i>
-                                    </a>
-                                </li>
-                            <?php endif; ?>
-                        </ul>
-                    </nav>
-                    <?php endif; ?>
                     
                 <?php else: ?>
                     <div class="text-center py-5">
@@ -415,108 +388,131 @@ ob_start();
     </div>
 </div>
 
-<!-- Scripts específicos -->
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Inicializar DataTables
-    if ($('.data-table').length) {
-        $('.data-table').DataTable({
-            language: {
-                url: '//cdn.datatables.net/plug-ins/1.13.4/i18n/es-ES.json'
-            },
-            pageLength: 25,
-            order: [[0, 'desc']],
-            dom: '<"row"<"col-md-6"l><"col-md-6"f>>rt<"row"<"col-md-6"i><"col-md-6"p>>',
-            responsive: true
-        });
-    }
-    
-    // Auto-enviar formulario de filtros al cambiar algunos selects
-    document.getElementById('lector_id').addEventListener('change', function() {
-        if (this.value !== 'todos') {
-            document.getElementById('form-filtros').submit();
-        }
-    });
-    
-    document.getElementById('estado').addEventListener('change', function() {
-        if (this.value !== 'todos') {
-            document.getElementById('form-filtros').submit();
-        }
-    });
-});
-
-// Función para ver detalles
-function verDetalles(prestamoId) {
-    // En un sistema real, esto haría una petición AJAX
-    const modalContent = `
-        <div class="modal fade" id="modalDetalles" tabindex="-1">
-            <div class="modal-dialog modal-lg">
-                <div class="modal-content">
-                    <div class="modal-header gradient-primary text-white">
-                        <h5 class="modal-title">Detalles del Préstamo</h5>
-                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="text-center">
-                            <div class="spinner-border text-primary"></div>
-                            <p class="mt-2">Cargando detalles...</p>
-                        </div>
-                        <div id="detalles-contenido"></div>
-                    </div>
-                </div>
+<!-- MODAL PARA DETALLES -->
+<div class="modal fade" id="modalDetalles" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header gradient-primary text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Detalles del Préstamo
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="modalDetallesBody">
+                <!-- Se cargará con AJAX -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i> Cerrar
+                </button>
             </div>
         </div>
-    `;
+    </div>
+</div>
+
+<!-- Scripts específicos -->
+<script>
+$(document).ready(function() {
+    // Inicializar DataTables
+    $('#tabla-prestamos').DataTable({
+        language: {
+            // Usar CDN de DataTables para español
+            url: 'https://cdn.datatables.net/plug-ins/1.13.4/i18n/es-ES.json'
+        },
+        pageLength: 20,
+        lengthMenu: [[10, 20, 50, 100, -1], [10, 20, 50, 100, "Todos"]],
+        order: [[0, 'asc']],
+        responsive: true,
+        dom: '<"row"<"col-md-6"l><"col-md-6"f>>rt<"row"<"col-md-12 text-center"p><"col-md-12 text-end"B>>',
+        columnDefs: [
+            { orderable: false, targets: [6] }
+        ],
+        info: false,
+        buttons: [
+            {
+                extend: 'copy',
+                text: '<i class="fas fa-copy"></i> Copiar',
+                className: 'btn btn-sm btn-outline-secondary',
+                title: 'Historial de Préstamos'
+            },
+            {
+                extend: 'excel',
+                text: '<i class="fas fa-file-excel"></i> Excel',
+                className: 'btn btn-sm btn-outline-success',
+                title: 'Historial de Préstamos'
+            },
+            {
+                extend: 'pdf',
+                text: '<i class="fas fa-file-pdf"></i> PDF',
+                className: 'btn btn-sm btn-outline-danger',
+                title: 'Historial de Préstamos'
+            },
+            {
+                extend: 'print',
+                text: '<i class="fas fa-print"></i> Imprimir',
+                className: 'btn btn-sm btn-outline-info',
+                title: 'Historial de Préstamos'
+            }
+        ]
+    });
     
-    // Agregar modal al DOM si no existe
-    if (!document.getElementById('modalDetalles')) {
-        document.body.insertAdjacentHTML('beforeend', modalContent);
-    }
     
-    const modal = new bootstrap.Modal(document.getElementById('modalDetalles'));
-    modal.show();
+    // Auto-enviar formulario de filtros al cambiar algunos selects
+    $('#lector_id').change(function() {
+        if ($(this).val() !== 'todos') {
+            $('#form-filtros').submit();
+        }
+    });
     
-    // Simular carga de detalles
-    setTimeout(() => {
-        document.getElementById('detalles-contenido').innerHTML = `
-            <div class="row">
-                <div class="col-md-6">
-                    <h6><i class="fas fa-book me-2"></i>Información del Libro</h6>
-                    <ul class="list-unstyled">
-                        <li><strong>ID Préstamo:</strong> ${prestamoId}</li>
-                        <li><strong>Título:</strong> Libro ejemplo</li>
-                        <li><strong>Autor:</strong> Autor ejemplo</li>
-                        <li><strong>ISBN:</strong> 978-3-16-148410-0</li>
-                    </ul>
+    $('#estado').change(function() {
+        if ($(this).val() !== 'todos') {
+            $('#form-filtros').submit();
+        }
+    });
+    
+    // Ver detalles del préstamo
+    $(document).on('click', '.ver-detalles', function() {
+        const prestamoId = $(this).data('id');
+        const modalDetalles = new bootstrap.Modal(document.getElementById('modalDetalles'));
+        
+        // Mostrar loading
+        $('#modalDetallesBody').html(`
+            <div class="text-center py-4">
+                <div class="spinner-border text-primary mb-3" role="status">
+                    <span class="visually-hidden">Cargando...</span>
                 </div>
-                <div class="col-md-6">
-                    <h6><i class="fas fa-user me-2"></i>Información de la Persona</h6>
-                    <ul class="list-unstyled">
-                        <li><strong>Nombre:</strong> Juan Pérez</li>
-                        <li><strong>Email:</strong> juan@email.com</li>
-                        <li><strong>Teléfono:</strong> (123) 456-7890</li>
-                    </ul>
-                </div>
+                <h5>Cargando detalles...</h5>
             </div>
-            <hr>
-            <div class="row">
-                <div class="col-md-6">
-                    <h6><i class="fas fa-calendar me-2"></i>Fechas</h6>
-                    <ul class="list-unstyled">
-                        <li><strong>Préstamo:</strong> ${new Date().toLocaleDateString()}</li>
-                        <li><strong>Devolución:</strong> ${new Date(Date.now() + 15*24*60*60*1000).toLocaleDateString()}</li>
-                        <li><strong>Días transcurridos:</strong> 5</li>
-                    </ul>
-                </div>
-                <div class="col-md-6">
-                    <h6><i class="fas fa-info-circle me-2"></i>Estado</h6>
-                    <p><span class="badge bg-success">DEVUELTO</span></p>
-                    <p><small class="text-muted">Última actualización: Hoy</small></p>
-                </div>
-            </div>
-        `;
-    }, 800);
-}
+        `);
+        
+        modalDetalles.show();
+        
+        // Cargar detalles reales via AJAX
+        $.ajax({
+            url: 'obtener_detalles_prestamo.php',
+            method: 'GET',
+            data: { 
+                id: prestamoId,
+                _t: new Date().getTime()
+            },
+            dataType: 'html',
+            success: function(response) {
+                $('#modalDetallesBody').html(response);
+            },
+            error: function(xhr, status, error) {
+                console.error('Error al cargar detalles:', error);
+                $('#modalDetallesBody').html(`
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Error al cargar los detalles del préstamo.<br>
+                        <small>${error}</small>
+                    </div>
+                `);
+            }
+        });
+    });
+});
 
 // Funciones de exportación
 function exportarExcel() {
@@ -525,30 +521,83 @@ function exportarExcel() {
 }
 
 function imprimirTabla() {
+    // Crear una versión limpia de la tabla sin DataTables
+    const tablaOriginal = document.getElementById('tabla-prestamos');
+    const tablaClon = tablaOriginal.cloneNode(true);
+    
+    // Remover funcionalidades de DataTables
+    $(tablaClon).find('td, th').css({
+        'border': '1px solid #000',
+        'padding': '5px'
+    });
+    
+    // Crear ventana de impresión
     const printWindow = window.open('', '_blank');
     const titulo = 'Historial de Préstamos - ' + new Date().toLocaleDateString();
-    const contenido = document.getElementById('tabla-historial').outerHTML;
     
     printWindow.document.write(`
         <html>
             <head>
                 <title>${titulo}</title>
-                <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
                 <style>
-                    body { padding: 20px; }
-                    @media print {
-                        .no-print { display: none !important; }
-                        table { font-size: 12px; }
+                    body { 
+                        font-family: Arial, sans-serif; 
+                        margin: 20px;
+                        font-size: 12px;
                     }
+                    h4 { 
+                        text-align: center; 
+                        margin-bottom: 20px;
+                        color: #333;
+                    }
+                    table {
+                        width: 100%;
+                        border-collapse: collapse;
+                        margin-bottom: 20px;
+                    }
+                    th {
+                        background-color: #f2f2f2;
+                        border: 1px solid #000;
+                        padding: 8px;
+                        text-align: left;
+                        font-weight: bold;
+                    }
+                    td {
+                        border: 1px solid #000;
+                        padding: 6px;
+                        vertical-align: top;
+                    }
+                    .no-print {
+                        display: none !important;
+                    }
+                    .badge {
+                        display: inline-block;
+                        padding: 3px 8px;
+                        border-radius: 3px;
+                        font-size: 11px;
+                        font-weight: bold;
+                    }
+                    .bg-success { background-color: #28a745 !important; color: white; }
+                    .bg-warning { background-color: #ffc107 !important; color: black; }
+                    .bg-danger { background-color: #dc3545 !important; color: white; }
+                    .text-center { text-align: center; }
+                    .text-muted { color: #6c757d !important; }
+                    .fw-bold { font-weight: bold !important; }
                 </style>
             </head>
             <body>
                 <h4>${titulo}</h4>
-                ${contenido}
+                ${tablaClon.outerHTML}
                 <div class="text-center no-print mt-4">
                     <button onclick="window.print()" class="btn btn-primary">Imprimir</button>
                     <button onclick="window.close()" class="btn btn-secondary">Cerrar</button>
                 </div>
+                <script>
+                    // Añadir estilos para impresión
+                    const style = document.createElement('style');
+                    style.textContent = '@media print { .no-print { display: none !important; } }';
+                    document.head.appendChild(style);
+                <\/script>
             </body>
         </html>
     `);

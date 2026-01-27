@@ -1,13 +1,14 @@
 <?php
-// layout.php - Plantilla base para Sistema de Biblioteca Local
+// layout.php - Plantilla base para Sistema de Biblioteca Elim TO
 ?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= $titulo ?? '📚 Sistema de Biblioteca - Iglesia' ?></title>
-    <!-- Logo pestaña -->
+    <title><?= $titulo ?? '📚 Sistema Biblioteca Elim TO' ?></title>
+    
+    <!-- Favicon -->
     <link rel="icon" type="image/png" href="images/logo.png">
     
     <!-- Bootstrap 5 CSS -->
@@ -19,537 +20,92 @@
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
     
-    <!-- DataTables CSS (opcional, para tablas avanzadas) -->
+    <!-- DataTables CSS (opcional) -->
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/dataTables.bootstrap5.min.css">
     
-    <style>
-        :root {
-            --primary-color: #2c3e50;
-            --secondary-color: #3498db;
-            --accent-color: #8e44ad;
-            --success-color: #27ae60;
-            --warning-color: #f39c12;
-            --danger-color: #e74c3c;
-            --light-color: #f8f9fa;
-            --dark-color: #343a40;
-            --book-color: #16a085;
-            --member-color: #2980b9;
-        }
-        
-        * {
-            font-family: 'Roboto', sans-serif;
-        }
-        
-        body {
-            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
-        
-        h1, h2, h3, h4, h5, h6, .navbar-brand {
-            font-family: 'Poppins', sans-serif;
-            font-weight: 600;
-        }
-        
-        /* NAVBAR SIMPLIFICADO */
-        .navbar {
-            background: linear-gradient(135deg, var(--primary-color), #34495e) !important;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-            padding: 12px 0;
-            margin-bottom: 25px;
-        }
-        
-        .navbar-brand {
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: white !important;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        
-        .navbar-brand i {
-            font-size: 1.8rem;
-            color: #f1c40f;
-        }
-        
-        .nav-link {
-            color: rgba(255,255,255,0.85) !important;
-            font-weight: 500;
-            padding: 8px 15px !important;
-            border-radius: 8px;
-            margin: 0 3px;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        
-        .nav-link:hover {
-            background: rgba(255,255,255,0.15);
-            color: white !important;
-            transform: translateY(-2px);
-        }
-        
-        .nav-link.active {
-            background: var(--book-color);
-            color: white !important;
-        }
-        
-        .navbar-toggler {
-            border: 2px solid rgba(255,255,255,0.3);
-            padding: 5px 10px;
-        }
-        
-        .navbar-toggler:focus {
-            box-shadow: 0 0 0 3px rgba(255,255,255,0.3);
-        }
-        
-        /* CONTENIDO PRINCIPAL */
-        .container {
-            max-width: 1400px;
-            padding: 0 20px;
-            flex: 1;
-        }
-        
-        /* CARD MEJORADOS */
-        .card {
-            border: none;
-            border-radius: 15px;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.08);
-            transition: all 0.3s ease;
-            overflow: hidden;
-            margin-bottom: 20px;
-        }
-        
-        .card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-        }
-        
-        .card-header {
-            border-bottom: none;
-            font-weight: 600;
-            background: linear-gradient(135deg, var(--primary-color), #4a6491);
-            color: white;
-        }
-        
-        /* BOTONES MEJORADOS */
-        .btn {
-            border-radius: 10px;
-            font-weight: 600;
-            padding: 10px 25px;
-            transition: all 0.3s ease;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            border: 2px solid transparent;
-        }
-        
-        .btn:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-        }
-        
-        .btn-primary {
-            background: linear-gradient(135deg, var(--secondary-color), #2980b9);
-            border: none;
-        }
-        
-        .btn-success {
-            background: linear-gradient(135deg, var(--success-color), #229954);
-            border: none;
-        }
-        
-        .btn-warning {
-            background: linear-gradient(135deg, var(--warning-color), #d68910);
-            border: none;
-        }
-        
-        .btn-danger {
-            background: linear-gradient(135deg, var(--danger-color), #c0392b);
-            border: none;
-        }
-        
-        .btn-info {
-            background: linear-gradient(135deg, var(--book-color), #1abc9c);
-            border: none;
-        }
-        
-        /* ESTILOS PARA BIBLIOTECA */
-        .book-status {
-            padding: 5px 15px;
-            border-radius: 20px;
-            font-weight: 600;
-            font-size: 0.85rem;
-        }
-        
-        .book-available {
-            background: #d4edda;
-            color: #155724;
-        }
-        
-        .book-borrowed {
-            background: #f8d7da;
-            color: #721c24;
-        }
-        
-        .book-reserved {
-            background: #fff3cd;
-            color: #856404;
-        }
-        
-        /* TABLAS MEJORADAS */
-        .table {
-            border-radius: 10px;
-            overflow: hidden;
-            background: white;
-        }
-        
-        .table thead th {
-            background: linear-gradient(135deg, var(--primary-color), #4a6491);
-            color: white;
-            border: none;
-            font-weight: 600;
-            padding: 15px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        
-        .table tbody tr {
-            transition: all 0.2s ease;
-        }
-        
-        .table tbody tr:hover {
-            background-color: rgba(52, 152, 219, 0.05);
-        }
-        
-        /* FORMULARIOS MEJORADOS */
-        .form-control, .form-select {
-            border-radius: 10px;
-            border: 2px solid #e0e0e0;
-            padding: 12px 15px;
-            transition: all 0.3s ease;
-        }
-        
-        .form-control:focus, .form-select:focus {
-            border-color: var(--secondary-color);
-            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
-        }
-        
-        .form-label {
-            font-weight: 600;
-            color: var(--primary-color);
-            margin-bottom: 8px;
-        }
-        
-        /* DASHBOARD / ESTADÍSTICAS */
-        .stats-card {
-            text-align: center;
-            padding: 25px 15px;
-            border: none;
-        }
-        
-        .stats-icon {
-            font-size: 2.5rem;
-            margin-bottom: 15px;
-            display: inline-block;
-        }
-        
-        .stats-number {
-            font-size: 2rem;
-            font-weight: 700;
-            margin-bottom: 5px;
-        }
-        
-        .stats-label {
-            font-size: 0.9rem;
-            color: rgba(255,255,255,0.9);
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-        
-        /* FOOTER SIMPLIFICADO */
-        footer {
-            background: linear-gradient(135deg, var(--primary-color), #2c3e50);
-            color: white;
-            margin-top: 50px;
-            padding: 20px 0;
-            text-align: center;
-            font-size: 0.9rem;
-            position: relative;
-        }
-        
-        footer::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 4px;
-            background: linear-gradient(90deg, var(--book-color), var(--accent-color));
-        }
-        
-        footer .footer-content {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 20px;
-        }
-        
-        footer .footer-logo {
-            font-size: 1.1rem;
-            font-weight: 700;
-            color: white;
-        }
-        
-        /* UTILIDADES */
-        .gradient-primary {
-            background: linear-gradient(135deg, var(--primary-color), #4a6491);
-            color: white;
-        }
-        
-        .gradient-book {
-            background: linear-gradient(135deg, var(--book-color), #1abc9c);
-            color: white;
-        }
-        
-        .shadow-soft {
-            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
-        }
-        
-        .rounded-lg {
-            border-radius: 15px;
-        }
-        
-        /* ANIMACIONES */
-        .fade-in {
-            animation: fadeIn 0.5s ease;
-        }
-        
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        
-        /* RESPONSIVE */
-        @media (max-width: 768px) {
-            .navbar-nav {
-                text-align: center;
-                padding: 15px 0;
-            }
-            
-            .nav-link {
-                margin: 5px 0;
-                justify-content: center;
-            }
-            
-            .container {
-                padding: 0 15px;
-            }
-            
-            footer .footer-content {
-                flex-direction: column;
-                text-align: center;
-                gap: 15px;
-            }
-            
-            .btn {
-                width: 100%;
-                margin-bottom: 10px;
-            }
-            
-            .stats-card {
-                margin-bottom: 20px;
-            }
-            
-            .table-responsive {
-                font-size: 0.9rem;
-            }
-        }
-        
-        /* BADGES MEJORADOS */
-        .badge {
-            border-radius: 20px;
-            padding: 6px 12px;
-            font-weight: 600;
-        }
-        
-        /* SCROLLBAR PERSONALIZADO */
-        ::-webkit-scrollbar {
-            width: 8px;
-        }
-        
-        ::-webkit-scrollbar-track {
-            background: #f1f1f1;
-            border-radius: 10px;
-        }
-        
-        ::-webkit-scrollbar-thumb {
-            background: var(--book-color);
-            border-radius: 10px;
-        }
-        
-        ::-webkit-scrollbar-thumb:hover {
-            background: var(--primary-color);
-        }
-        
-        /* LOGO DE NAVBAR */
-        .navbar-logo {
-            height: 40px;
-            width: auto;
-            border-radius: 6px;
-            object-fit: contain;
-            margin-right: 10px;
-            border: 2px solid rgba(255,255,255,0.3);
-            padding: 2px;
-            background: white;
-        }
-        
-        /* ESTILOS PARA BUSQUEDA */
-        .search-box {
-            position: relative;
-        }
-        
-        .search-box .form-control {
-            padding-right: 45px;
-        }
-        
-        .search-box .search-icon {
-            position: absolute;
-            right: 15px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: #6c757d;
-        }
-        
-        /* MENSAJES DEL SISTEMA */
-        .alert {
-            border-radius: 12px;
-            border: none;
-            box-shadow: 0 3px 10px rgba(0,0,0,0.08);
-            padding: 15px 20px;
-        }
-        
-        .alert-success {
-            background: linear-gradient(135deg, #d4edda, #c3e6cb);
-            color: #155724;
-            border-left: 5px solid var(--success-color);
-        }
-        
-        .alert-warning {
-            background: linear-gradient(135deg, #fff3cd, #ffeaa7);
-            color: #856404;
-            border-left: 5px solid var(--warning-color);
-        }
-        
-        .alert-danger {
-            background: linear-gradient(135deg, #f8d7da, #f5c6cb);
-            color: #721c24;
-            border-left: 5px solid var(--danger-color);
-        }
-        
-        .alert-info {
-            background: linear-gradient(135deg, #d1ecf1, #bee5eb);
-            color: #0c5460;
-            border-left: 5px solid var(--secondary-color);
-        }
-        
-        /* BREADCRUMB (opcional) */
-        .breadcrumb {
-            background: rgba(0,0,0,0.03);
-            border-radius: 10px;
-            padding: 10px 15px;
-        }
-        
-        /* PAGINACIÓN */
-        .pagination .page-link {
-            border-radius: 8px;
-            margin: 0 3px;
-            border: none;
-            color: var(--primary-color);
-        }
-        
-        .pagination .page-item.active .page-link {
-            background: var(--book-color);
-            color: white;
-            border: none;
-        }
-    </style>
+    <!-- CSS personalizado -->
+    <link rel="stylesheet" href="css/style-layout.css">
+
+    <!-- Estilos específicos de página -->
+<?php if (!empty($GLOBALS['pageStyles'] ?? '')) echo $GLOBALS['pageStyles']; ?>
+    
+    <!-- jQuery (en head para compatibilidad) -->
+    <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
 </head>
 <body class="fade-in">
-    <!-- NAVBAR CON LAS 5 OPCIONES -->
-    <nav class="navbar navbar-expand-lg navbar-dark">
+        <!-- NAVBAR COMPACTO Y ELEGANTE -->
+    <nav class="navbar navbar-expand-lg navbar-dark fixed-top">
         <div class="container">
-            <a class="navbar-brand" href="menu.php">
-                <i class="fas fa-book"></i>
-                <span>Biblioteca Iglesia</span>
+            <!-- Logo -->
+            <a class="navbar-brand d-flex align-items-center" href="menu.php">
+                <div class="logo-container">
+                    <?php if(file_exists('images/logo.png')): ?>
+                       <img src="images/logo.png" alt="Logo Biblioteca Elim TO" 
+                            class="navbar-logo">
+                    <?php else: ?>
+                        <div class="logo-placeholder">
+                            <i class="fas fa-book"></i>
+                        </div>
+                    <?php endif; ?>
+                </div>
+                <div class="brand-text ms-2">
+                    <div class="brand-title">Biblioteca Elim TO</div>
+                </div>
             </a>
             
+            <!-- Botón menú móvil -->
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
             
+            <!-- Todo el contenido del menú -->
             <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <!-- Menú Principal -->
-                    <li class="nav-item">
-                        <a class="nav-link <?= basename($_SERVER['PHP_SELF']) == 'menu.php' ? 'active' : '' ?>" 
-                           href="menu.php">
-                            <i class="fas fa-home"></i> Menú
-                        </a>
-                    </li>
+                <!-- Menú principal - CENTRO -->
+                <ul class="navbar-nav mx-auto">
+                    <?php
+                    $menuItems = [
+                        'menu.php' => ['icon' => 'fas fa-home', 'text' => 'Inicio'],
+                        'agregar_prestamo.php' => ['icon' => 'fas fa-book-medical', 'text' => 'Nuevo Préstamo'],
+                        'gestion_prestamo.php' => ['icon' => 'fas fa-clipboard-list', 'text' => 'Gestionar'],
+                        'devolucion_libro.php' => ['icon' => 'fas fa-exchange-alt', 'text' => 'Devoluciones'],
+                        'historial_prestamo.php' => ['icon' => 'fas fa-history', 'text' => 'Historial'],
+                        'catalogo_libros.php' => ['icon' => 'fas fa-book-open', 'text' => 'Catálogo']
+                    ];
                     
-                    <!-- Agregar Préstamo -->
-                    <li class="nav-item">
-                        <a class="nav-link <?= basename($_SERVER['PHP_SELF']) == 'agregar_prestamo.php' ? 'active' : '' ?>" 
-                           href="agregar_prestamo.php">
-                            <i class="fas fa-plus-circle"></i> Agregar Préstamo
-                        </a>
-                    </li>
+                    $currentPage = basename($_SERVER['PHP_SELF'] ?? 'menu.php');
                     
-                    <!-- Gestionar Préstamos -->
+                    foreach ($menuItems as $url => $item):
+                        $active = $currentPage === $url;
+                    ?>
                     <li class="nav-item">
-                        <a class="nav-link <?= basename($_SERVER['PHP_SELF']) == 'gestion_prestamo.php' ? 'active' : '' ?>" 
-                           href="gestion_prestamo.php">
-                            <i class="fas fa-tasks"></i> Gestionar Préstamos
+                        <a class="nav-link <?= $active ? 'active' : '' ?>" href="<?= $url ?>">
+                            <i class="<?= $item['icon'] ?> me-1"></i>
+                            <?= $item['text'] ?>
                         </a>
                     </li>
-                    
-                    <!-- Devolución -->
-                    <li class="nav-item">
-                        <a class="nav-link <?= basename($_SERVER['PHP_SELF']) == 'devolucion_libro.php' ? 'active' : '' ?>" 
-                           href="devolucion_libro.php">
-                            <i class="fas fa-exchange-alt"></i> Devolución
-                        </a>
-                    </li>
-                    
-                    <!-- Historial -->
-                    <li class="nav-item">
-                        <a class="nav-link <?= basename($_SERVER['PHP_SELF']) == 'historial_prestamo.php' ? 'active' : '' ?>" 
-                           href="historial_prestamo.php">
-                            <i class="fas fa-history"></i> Historial
-                        </a>
-                    </li>
-                    
-                    <!-- Catálogo -->
-                    <li class="nav-item">
-                        <a class="nav-link <?= basename($_SERVER['PHP_SELF']) == 'catalogo_libros.php' ? 'active' : '' ?>" 
-                           href="catalogo_libros.php">
-                            <i class="fas fa-book-open"></i> Catálogo
-                        </a>
-                    </li>
+                    <?php endforeach; ?>
                 </ul>
+                
+                <!-- Usuario y cerrar sesión - DERECHA -->
+                <div class="navbar-right">
+                    <span class="navbar-user d-none d-md-inline">
+                        <i class="fas fa-user me-1"></i>
+                        <?php echo htmlspecialchars($_SESSION['nombre_completo'] ?? 'Usuario'); ?>
+                    </span>
+                    <a href="login/logout.php" class="btn-logout">
+                        <i class="fas fa-sign-out-alt"></i>
+                        <span class="ms-1">Salir</span>
+                    </a>
+                </div>
             </div>
         </div>
     </nav>
+    <!-- Espacio para compensar navbar fijo -->
+    <div class="navbar-spacer"></div>
 
     <!-- CONTENIDO PRINCIPAL -->
-    <main class="container">
-        <!-- Mensajes del sistema (opcional) -->
+    <main class="container main-content">
+        <!-- Mensajes del sistema -->
         <?php if (!empty($mensaje_exito)): ?>
             <div class="alert alert-success alert-dismissible fade show mb-4" role="alert">
                 <div class="d-flex align-items-center">
@@ -582,8 +138,8 @@
         
         <!-- Título de página -->
         <?php if (!empty($titulo_pagina)): ?>
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h1 class="h2 mb-0">
+        <div class="d-flex justify-content-between align-items-center mb-4 page-header">
+            <h1 class="h2 mb-0 fw-bold">
                 <?php if (!empty($icono_titulo)): ?>
                     <i class="<?= $icono_titulo ?> me-2"></i>
                 <?php endif; ?>
@@ -597,7 +153,7 @@
         </div>
         <?php endif; ?>
         
-        <!-- Breadcrumb (opcional) -->
+        <!-- Breadcrumb -->
         <?php if (!empty($breadcrumb)): ?>
         <nav aria-label="breadcrumb" class="mb-4">
             <ol class="breadcrumb">
@@ -607,132 +163,55 @@
         <?php endif; ?>
         
         <!-- Contenido dinámico -->
-        <div class="mb-5">
+        <div class="content-area mb-5">
             <?= $contenido ?? '<div class="alert alert-warning">Contenido no disponible.</div>' ?>
         </div>
     </main>
 
-    <!-- FOOTER SIMPLIFICADO -->
-    <footer>
+    <!-- FOOTER -->
+    <footer class="footer">
         <div class="container">
-            <div class="footer-content">
-                <div class="footer-logo">
-                    <i class="fas fa-church me-2"></i>Sistema de Biblioteca Local
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <div class="d-flex align-items-center">
+                        <?php if(file_exists('images/logo.png')): ?>
+                            <img src="images/logo.png" alt="Logo" class="footer-logo me-3 rounded-circle">
+                        <?php endif; ?>
+                        <div>
+                            <h6 class="mb-0 fw-bold text-white">Biblioteca Elim TO</h6> <!-- AÑADIR text-white -->
+                            <small class="text-white-75">Sistema de Gestión Bibliotecaria</small> <!-- CAMBIAR text-muted -->
+                        </div>
+                    </div>
                 </div>
-                <div class="footer-copy">
-                    Control Local &copy; <?= date('Y') ?> - Iglesia
+                <div class="col-md-6 text-md-end mt-3 mt-md-0">
+                    <p class="mb-0 small text-white"> <!-- AÑADIR text-white -->
+                        <i class="fas fa-copyright me-1"></i>
+                        <?= date('Y') ?> Todos los derechos reservados
+                        <br>
+                        <span class="text-white-75">v1.0.0</span> <!-- CAMBIAR text-muted -->
+                    </p>
                 </div>
+            </div>
+            <hr class="my-3 text-white-50"> <!-- AÑADIR text-white-50 -->
+            <div class="text-center small text-white-75"> <!-- CAMBIAR text-muted -->
+                <i class="fas fa-map-marker-alt me-1"></i> Via Saint Bon 58
+                <span class="mx-2">•</span>
+                <i class="fas fa-phone me-1"></i> +39 389 599 2466
             </div>
         </div>
     </footer>
 
-<!-- jQuery DEBE estar en el head, no al final -->
-<script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-
-<!-- DataTables JS (opcional) -->
-<script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
-<script src="https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap5.min.js"></script>
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
-    <!-- Scripts adicionales -->
-    <script>
-        // Auto-ocultar alertas después de 5 segundos
-        document.addEventListener('DOMContentLoaded', function() {
-            const alerts = document.querySelectorAll('.alert');
-            alerts.forEach(alert => {
-                setTimeout(() => {
-                    const bsAlert = new bootstrap.Alert(alert);
-                    bsAlert.close();
-                }, 5000);
-            });
-            
-            // Activar tooltips
-            const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-            const tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-                return new bootstrap.Tooltip(tooltipTriggerEl);
-            });
-            
-            // Inicializar DataTables si hay tablas con la clase 'data-table'
-            if ($('.data-table').length) {
-                $('.data-table').DataTable({
-                    language: {
-                        url: '//cdn.datatables.net/plug-ins/1.13.4/i18n/es-ES.json'
-                    },
-                    responsive: true,
-                    pageLength: 25,
-                    order: [[0, 'desc']]
-                });
-            }
-            
-            // Confirmación para acciones peligrosas
-            document.querySelectorAll('.confirm-action').forEach(button => {
-                button.addEventListener('click', function(e) {
-                    if (!confirm('¿Está seguro de realizar esta acción?')) {
-                        e.preventDefault();
-                    }
-                });
-            });
-            
-            // Calcular fecha de devolución automática (15 días por defecto)
-            if (document.getElementById('fecha_prestamo')) {
-                document.getElementById('fecha_prestamo').addEventListener('change', function() {
-                    const fechaPrestamo = new Date(this.value);
-                    if (!isNaN(fechaPrestamo.getTime())) {
-                        const fechaDevolucion = new Date(fechaPrestamo);
-                        fechaDevolucion.setDate(fechaDevolucion.getDate() + 15);
-                        
-                        const fechaDevolucionInput = document.getElementById('fecha_devolucion_estimada');
-                        if (fechaDevolucionInput) {
-                            fechaDevolucionInput.value = fechaDevolucion.toISOString().split('T')[0];
-                        }
-                    }
-                });
-            }
-        });
-        
-        // Validación de formularios
-        (function () {
-            'use strict'
-            var forms = document.querySelectorAll('.needs-validation')
-            Array.prototype.slice.call(forms).forEach(function (form) {
-                form.addEventListener('submit', function (event) {
-                    if (!form.checkValidity()) {
-                        event.preventDefault()
-                        event.stopPropagation()
-                    }
-                    form.classList.add('was-validated')
-                }, false)
-            })
-        })()
-        
-        // Función para imprimir tablas
-        function imprimirTabla(tablaId, titulo = 'Reporte') {
-            const printWindow = window.open('', '_blank');
-            printWindow.document.write('<html><head><title>' + titulo + '</title>');
-            printWindow.document.write('<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">');
-            printWindow.document.write('<style>body{padding:20px;} @media print{body{-webkit-print-color-adjust:exact;}}</style>');
-            printWindow.document.write('</head><body>');
-            printWindow.document.write('<h4 class="mb-4">' + titulo + '</h4>');
-            printWindow.document.write(document.getElementById(tablaId).outerHTML);
-            printWindow.document.write('</body></html>');
-            printWindow.document.close();
-            printWindow.print();
-        }
-        
-        // Función para exportar a Excel (simplificada)
-        function exportarExcel(tablaId, nombreArchivo = 'reporte') {
-            const tabla = document.getElementById(tablaId);
-            const html = tabla.outerHTML;
-            const blob = new Blob([html], {type: 'application/vnd.ms-excel'});
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = nombreArchivo + '.xls';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        }
-    </script>
+    <!-- DataTables JS (opcional) -->
+    <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap5.min.js"></script>
+    
+    <!-- Scripts personalizados -->
+    <script src="js/main.js"></script>
+
+    <!-- Scripts específicos de página -->
+<?php if (!empty($GLOBALS['pageScripts'] ?? '')) echo $GLOBALS['pageScripts']; ?>
 </body>
 </html>
