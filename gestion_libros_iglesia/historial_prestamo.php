@@ -316,26 +316,6 @@ ob_start();
                 </div>
             </div>
         </div>
-        
-        <!-- Exportación -->
-        <div class="card mt-4">
-            <div class="card-header gradient-success">
-                <h6 class="mb-0"><i class="fas fa-download me-2"></i>Exportar</h6>
-            </div>
-            <div class="card-body">
-                <div class="d-grid gap-2">
-                    <button class="btn btn-outline-success" onclick="exportarExcel()">
-                        <i class="fas fa-file-excel me-2"></i>Excel
-                    </button>
-                    <button class="btn btn-outline-danger" onclick="imprimirTabla()">
-                        <i class="fas fa-print me-2"></i>Imprimir
-                    </button>
-                    <button class="btn btn-outline-info" onclick="generarReporte()">
-                        <i class="fas fa-chart-bar me-2"></i>Reporte
-                    </button>
-                </div>
-            </div>
-        </div>
     </div>
     
     <!-- LISTA DE PRÉSTAMOS -->
@@ -529,39 +509,12 @@ $(document).ready(function() {
         lengthMenu: [[10, 20, 50, 100, -1], [10, 20, 50, 100, "Todos"]],
         order: [[0, 'asc']],
         responsive: true,
-        dom: '<"row"<"col-md-6"l><"col-md-6"f>>rt<"row"<"col-md-12 text-center"p><"col-md-12 text-end"B>>',
+        dom: '<"row"<"col-md-6"l><"col-md-6"f>>rt<"row"<"col-md-12 text-center"p>>',
         columnDefs: [
             { orderable: false, targets: [6] }
         ],
-        info: false,
-        buttons: [
-            {
-                extend: 'copy',
-                text: '<i class="fas fa-copy"></i> Copiar',
-                className: 'btn btn-sm btn-outline-secondary',
-                title: 'Historial de Préstamos'
-            },
-            {
-                extend: 'excel',
-                text: '<i class="fas fa-file-excel"></i> Excel',
-                className: 'btn btn-sm btn-outline-success',
-                title: 'Historial de Préstamos'
-            },
-            {
-                extend: 'pdf',
-                text: '<i class="fas fa-file-pdf"></i> PDF',
-                className: 'btn btn-sm btn-outline-danger',
-                title: 'Historial de Préstamos'
-            },
-            {
-                extend: 'print',
-                text: '<i class="fas fa-print"></i> Imprimir',
-                className: 'btn btn-sm btn-outline-info',
-                title: 'Historial de Préstamos'
-            }
-        ]
+        info: false
     });
-    
     
     // Auto-enviar formulario de filtros al cambiar algunos selects
     $('#lector_id').change(function() {
@@ -618,100 +571,6 @@ $(document).ready(function() {
         });
     });
 });
-
-// Funciones de exportación
-function exportarExcel() {
-    alert('Función de exportación a Excel - En desarrollo');
-    // En un sistema real: window.location = 'exportar_excel.php?' + new URLSearchParams(window.location.search);
-}
-
-function imprimirTabla() {
-    // Crear una versión limpia de la tabla sin DataTables
-    const tablaOriginal = document.getElementById('tabla-prestamos');
-    const tablaClon = tablaOriginal.cloneNode(true);
-    
-    // Remover funcionalidades de DataTables
-    $(tablaClon).find('td, th').css({
-        'border': '1px solid #000',
-        'padding': '5px'
-    });
-    
-    // Crear ventana de impresión
-    const printWindow = window.open('', '_blank');
-    const titulo = 'Historial de Préstamos - ' + new Date().toLocaleDateString();
-    
-    printWindow.document.write(`
-        <html>
-            <head>
-                <title>${titulo}</title>
-                <style>
-                    body { 
-                        font-family: Arial, sans-serif; 
-                        margin: 20px;
-                        font-size: 12px;
-                    }
-                    h4 { 
-                        text-align: center; 
-                        margin-bottom: 20px;
-                        color: #333;
-                    }
-                    table {
-                        width: 100%;
-                        border-collapse: collapse;
-                        margin-bottom: 20px;
-                    }
-                    th {
-                        background-color: #f2f2f2;
-                        border: 1px solid #000;
-                        padding: 8px;
-                        text-align: left;
-                        font-weight: bold;
-                    }
-                    td {
-                        border: 1px solid #000;
-                        padding: 6px;
-                        vertical-align: top;
-                    }
-                    .no-print {
-                        display: none !important;
-                    }
-                    .badge {
-                        display: inline-block;
-                        padding: 3px 8px;
-                        border-radius: 3px;
-                        font-size: 11px;
-                        font-weight: bold;
-                    }
-                    .bg-success { background-color: #28a745 !important; color: white; }
-                    .bg-warning { background-color: #ffc107 !important; color: black; }
-                    .bg-danger { background-color: #dc3545 !important; color: white; }
-                    .text-center { text-align: center; }
-                    .text-muted { color: #6c757d !important; }
-                    .fw-bold { font-weight: bold !important; }
-                </style>
-            </head>
-            <body>
-                <h4>${titulo}</h4>
-                ${tablaClon.outerHTML}
-                <div class="text-center no-print mt-4">
-                    <button onclick="window.print()" class="btn btn-primary">Imprimir</button>
-                    <button onclick="window.close()" class="btn btn-secondary">Cerrar</button>
-                </div>
-                <script>
-                    // Añadir estilos para impresión
-                    const style = document.createElement('style');
-                    style.textContent = '@media print { .no-print { display: none !important; } }';
-                    document.head.appendChild(style);
-                <\/script>
-            </body>
-        </html>
-    `);
-    printWindow.document.close();
-}
-
-function generarReporte() {
-    window.location.href = 'reporte_prestamos.php?' + new URLSearchParams(window.location.search);
-}
 </script>
 <?php
 $contenido = ob_get_clean();

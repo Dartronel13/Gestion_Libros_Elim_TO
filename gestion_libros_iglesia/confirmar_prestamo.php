@@ -1,5 +1,3 @@
-[file name]: confirmar_prestamo.php
-[file content begin]
 <?php
 // confirmar_prestamo.php 
 require_once 'db.php';
@@ -274,27 +272,26 @@ $db->registrarAccion('proceso_completado', 'prestamos', "Préstamo completado ex
             </tr>
         </table>
         
-        <!-- Versículo -->
-        <div style="text-align: center; font-size: 9px; font-style: italic; color: #666; margin-bottom: 5px;">
-            "Instruye al sabio, y será más sabio; enseña al justo, y aumentará su saber." Proverbios 9:9
-        </div>
-        
-        <!-- Pie de página -->
-        <div style="padding-top: 5px; border-top: 1px solid #000; text-align: center; font-size: 8px; color: #666;">
-            <div><strong>Iglesia Elim Torino - Biblioteca Cristiana</strong></div>
-            <div>Tel: +39 389 599 2466 | Email: iglesiaelimtorino20@gmail.com</div>
-            <div>Dirección: Via Saint Bon 58, TO</div>
-            <div style="font-size: 7px; margin-top: 3px;">Recibo generado: <?php echo date('d/m/Y H:i'); ?></div>
-        </div>
-        
         <!-- Línea de corte -->
         <div style="text-align: center; margin-top: 15px; padding-top: 5px; border-top: 1px dashed #999; font-size: 8px; color: #999;">
             --- CORTAR Y ENTREGAR AL LECTOR ---
         </div>
         
-        <!-- SECCIÓN PARA DEVOLUCIÓN CON MÁS ESPACIO RESTAURADO -->
+        <!-- SECCIÓN PARA DEVOLUCIÓN (PARTE QUE SE ENTREGA AL LECTOR) -->
         <div style="margin-top: 15px; padding: 8px; border: 1px solid #000; background: #f9f9f9; font-size: 8px;">
-            <div style="text-align: center; font-weight: bold; margin-bottom: 6px; font-size: 9px;">PRESENTAR PARA DEVOLUCIÓN</div>
+            <!-- Encabezado de la sección que se entrega -->
+            <div style="text-align: center; margin-bottom: 8px;">
+                <div style="font-size: 10px; font-weight: bold;">IGLESIA ELIM TORINO</div>
+                <div style="font-size: 9px;">Biblioteca Cristiana</div>
+                <div style="font-size: 8px; margin-top: 2px;">
+                    <strong>COMPROBANTE DE PRÉSTAMO</strong> | <strong>No:</strong> <?php echo $numero_recibo; ?>
+                </div>
+            </div>
+            
+            <div style="text-align: center; font-weight: bold; margin-bottom: 6px; font-size: 9px; background: #e8e8e8; padding: 3px;">
+                PRESENTAR PARA DEVOLUCIÓN
+            </div>
+            
             <table width="100%">
                 <tr>
                     <td style="padding-bottom: 4px;"><strong>Recibo:</strong> <?php echo $numero_recibo; ?></td>
@@ -303,6 +300,12 @@ $db->registrarAccion('proceso_completado', 'prestamos', "Préstamo completado ex
                 <tr>
                     <td style="padding-bottom: 8px;"><strong>Lector:</strong> <?php echo htmlspecialchars(substr($lector['nombre'] . ' ' . $lector['apellido'], 0, 20)); ?></td>
                     <td style="padding-bottom: 8px;"><strong>Devolución:</strong> <?php echo date('d/m/Y', strtotime($datos['fecha_devolucion_estimada'])); ?></td>
+                </tr>
+                <tr>
+                    <td colspan="2" style="padding-bottom: 8px;">
+                        <strong>Libro:</strong> <?php echo htmlspecialchars(substr($libro['titulo'], 0, 40)); ?><?php echo strlen($libro['titulo']) > 40 ? '...' : ''; ?><br>
+                        <strong>Autor:</strong> <?php echo htmlspecialchars(substr($libro['autor'], 0, 30)); ?><?php echo strlen($libro['autor']) > 30 ? '...' : ''; ?>
+                    </td>
                 </tr>
                 
                 <!-- LÍNEA "RECIBÍ CONFORME" MODIFICADA - LÍNEA ABAJO Y ESPACIO ARRIBA PARA FIRMAR -->
@@ -330,10 +333,32 @@ $db->registrarAccion('proceso_completado', 'prestamos', "Préstamo completado ex
                             <div style="margin-left: 8px;">
                                 1. Devolución: <strong><?php echo date('d/m/Y', strtotime($datos['fecha_devolucion_estimada'])); ?></strong><br>
                                 2. Devuelva en mismo estado<br>
-                                3. En pérdida/daño, debera reponer el precio del libro<br>
-                                4. Es posible aumentar el plazo del prestamo por 15 dias si es necesario<br>
-                                5. Presente este comprobante para realizar la devolucion.
+                                3. En pérdida/daño, debe reponer<br>
+                                4. 1 renovación de 15 días posible<br>
+                                5. Presente este comprobante
                             </div>
+                        </div>
+                    </td>
+                </tr>
+                
+                <!-- VERSÍCULO MOVIDO AQUÍ -->
+                <tr>
+                    <td colspan="2" style="padding-top: 10px;">
+                        <div style="text-align: center; font-size: 8px; font-style: italic; color: #666; padding: 5px; border-top: 1px dotted #ccc;">
+                            "Instruye al sabio, y será más sabio; enseña al justo, y aumentará su saber."<br>
+                            <strong>Proverbios 9:9</strong>
+                        </div>
+                    </td>
+                </tr>
+                
+                <!-- INFORMACIÓN DE CONTACTO MOVIDA AQUÍ -->
+                <tr>
+                    <td colspan="2" style="padding-top: 8px;">
+                        <div style="padding-top: 5px; border-top: 1px solid #ccc; text-align: center; font-size: 7px; color: #666;">
+                            <div><strong>Iglesia Elim Torino - Biblioteca Cristiana</strong></div>
+                            <div>Tel: +39 389 599 2466 | Email: iglesiaelimtorino20@gmail.com</div>
+                            <div>Dirección: Via Saint Bon 58, TO</div>
+                            <div style="font-size: 6px; margin-top: 3px;">Recibo generado: <?php echo date('d/m/Y H:i'); ?></div>
                         </div>
                     </td>
                 </tr>
@@ -385,4 +410,3 @@ setTimeout(() => {
 $contenido = ob_get_clean();
 include 'layout.php';
 ?>
-[file content end]
