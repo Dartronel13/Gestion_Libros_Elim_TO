@@ -364,7 +364,7 @@ ob_start();
             <div class="card-body">
                 <div class="d-grid gap-2">
                     <button type="submit" class="btn btn-success btn-lg">
-                        <i class="fas fa-file-alt me-2"></i>Ver Resumen del Préstamo
+                        <i class="fas fa-file-alt me-2"></i>Confirmar Préstamo
                     </button>
                     
                     <button type="button" class="btn btn-outline-secondary" onclick="window.location.href='menu.php'">
