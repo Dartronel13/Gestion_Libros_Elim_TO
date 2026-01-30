@@ -328,25 +328,6 @@ ob_start();
                     <p class="text-muted">No hay préstamos activos en este momento.</p>
                 </div>
             </div>
-        </div>
-        
-        <!-- Búsqueda Manual -->
-        <div class="card mt-4">
-            <div class="card-header">
-                <h6 class="mb-0"><i class="fas fa-search me-2"></i>Búsqueda Manual</h6>
-            </div>
-            <div class="card-body">
-                <div class="input-group">
-                    <input type="text" class="form-control" id="busqueda-manual" 
-                           placeholder="Buscar por título, persona, código...">
-                    <button class="btn btn-outline-primary" type="button" id="btn-buscar">
-                        <i class="fas fa-search"></i>
-                    </button>
-                </div>
-                <div id="resultados-busqueda" class="mt-3"></div>
-            </div>
-        </div>
-    </div>
 </div>
 
 <!-- MODAL PARA INGRESO MANUAL -->

@@ -1,0 +1,24 @@
+body { background-color: #f8f9fa; padding-top: 20px; }
+        .card { margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .card-header { font-weight: bold; }
+        .table-active { background-color: #e3f2fd !important; }
+        .libro-fila { cursor: pointer; }
+        .libro-fila:hover { background-color: #f8f9fa; }
+        .stock-badge { min-width: 40px; }
+        .etiqueta-preview { border: 1px solid #ddd; background: white; padding: 10px; text-align: center; }
+        .loading-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5); z-index: 9999; display: none;
+            justify-content: center; align-items: center;
+        }
+
+/* Asegurar que overlay esté oculto inicialmente */
+#loadingOverlay {
+    transition: opacity 0.3s ease !important;
+}
+
+/* Si hay conflictos de z-index */
+body > .loading-overlay {
+    z-index: 99999 !important;
+}
+        

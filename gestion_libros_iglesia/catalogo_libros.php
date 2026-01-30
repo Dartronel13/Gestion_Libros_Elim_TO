@@ -6,7 +6,7 @@ verificarAutenticacion();
 
 $db->registrarAccion('acceso', 'catalogo', "Accedió al catálogo de libros");
 
-$titulo_pagina = '📚 Catálogo de Libros';
+$titulo_pagina = 'Catálogo de Libros';
 $icono_titulo = 'fas fa-book-open';
 
 $mensaje_exito = '';
@@ -247,14 +247,14 @@ ob_start();
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    <div class="col-md-2">
+                    <div class="col-md-auto">
                         <select name="stock" class="form-select">
                             <option value="">Todo el stock</option>
                             <option value="disponible" <?php echo ($stock_filtro == 'disponible') ? 'selected' : ''; ?>>Disponible</option>
                             <option value="agotado" <?php echo ($stock_filtro == 'agotado') ? 'selected' : ''; ?>>Agotado</option>
                         </select>
                     </div>
-                    <div class="col-md-2">
+                    <div class="col-md-auto">
                         <button type="submit" class="btn btn-primary w-100">
                             <i class="fas fa-filter me-1"></i> Filtrar
                         </button>
@@ -277,7 +277,7 @@ ob_start();
 
 <!-- TABLA DE LIBROS -->
 <div class="card">
-    <div class="card-header gradient-book text-white d-flex justify-content-between align-items-center">
+    <div class="card-header gradient-book text-dark d-flex justify-content-between align-items-center">
         <h5 class="mb-0">
             <i class="fas fa-list me-2"></i>
             Catálogo de Libros

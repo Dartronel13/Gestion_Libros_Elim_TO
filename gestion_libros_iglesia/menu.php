@@ -4,7 +4,6 @@ require_once 'db.php';
 verificarAutenticacion();
 
 // Configurar variables para el layout
-$titulo = '📚 Inicio - Sistema Biblioteca Elim TO';
 $titulo_pagina = 'Dashboard - Sistema de Biblioteca';
 $icono_titulo = 'fas fa-chart-line';
 
@@ -45,13 +44,7 @@ $num_prestamos = mysqli_num_rows($result_prestamos);
 
 // CSS específico para el menú
 $pageStyles = '
-<link rel="stylesheet" href="css/menu-style.css">
-<style>
-    /* Estilos adicionales inline si necesitas */
-    .page-header {
-        display: none !important;
-    }
-</style>';
+<link rel="stylesheet" href="css/menu-style.css">';
 
 // JavaScript específico para el menú
 $pageScripts = '

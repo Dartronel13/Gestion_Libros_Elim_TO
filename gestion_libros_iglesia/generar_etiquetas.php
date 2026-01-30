@@ -57,37 +57,20 @@ $tipos_barcode = [
         'recomendado' => false
     ]
 ];
+$titulo_pagina = 'Generar Etiquetas';
+$icono_titulo = 'fas fa-tags'; 
+
+
+// CSS específico para el menú
+$pageStyles = '
+<link rel="stylesheet" href="css\generar_etiquetas-style.css">';
+
+ob_start();
 ?>
 
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Generar Etiquetas - Sistema de Biblioteca</title>
-    <!-- Bootstrap 5 -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        body { background-color: #f8f9fa; padding-top: 20px; }
-        .card { margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .card-header { font-weight: bold; }
-        .table-active { background-color: #e3f2fd !important; }
-        .libro-fila { cursor: pointer; }
-        .libro-fila:hover { background-color: #f8f9fa; }
-        .stock-badge { min-width: 40px; }
-        .etiqueta-preview { border: 1px solid #ddd; background: white; padding: 10px; text-align: center; }
-        .loading-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.5); z-index: 9999; display: none;
-            justify-content: center; align-items: center;
-        }
-    </style>
-</head>
-<body>
-    <!-- LOADING OVERLAY -->
-    <div class="loading-overlay" id="loadingOverlay">
+
+    <!-- LOADING OVERLAY - CON TRANSICIÓN -->
+    <div class="loading-overlay" id="loadingOverlay" style="display: none; visibility: hidden; opacity: 0; transition: opacity 0.3s ease;">
         <div class="text-center bg-white p-4 rounded shadow">
             <div class="spinner-border text-primary mb-3" role="status">
                 <span class="visually-hidden">Cargando...</span>
@@ -326,6 +309,44 @@ $tipos_barcode = [
     <!-- JAVASCRIPT PULIDO -->
     <script>
     // ==============================================
+    // FUNCIONES PARA EL LOADING OVERLAY
+    // ==============================================
+
+    function mostrarLoading() {
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        if (loadingOverlay) {
+            loadingOverlay.style.display = 'flex';
+            loadingOverlay.style.visibility = 'visible';
+            loadingOverlay.style.opacity = '1';
+            // Asegurar que esté encima de todo
+            loadingOverlay.style.zIndex = '9999';
+        }
+    }
+
+    function ocultarLoading() {
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        if (loadingOverlay) {
+            loadingOverlay.style.display = 'none';
+            loadingOverlay.style.visibility = 'hidden';
+            loadingOverlay.style.opacity = '0';
+        }
+    }
+
+    // Asegurar que el overlay se oculte si la página se recarga
+    window.addEventListener('beforeunload', function() {
+        ocultarLoading();
+    });
+
+    // Ocultar overlay si hay un error de JavaScript
+    window.addEventListener('error', function() {
+        ocultarLoading();
+    });
+
+
+
+
+
+    // ==============================================
     // VARIABLES Y FUNCIONES BÁSICAS
     // ==============================================
     
@@ -440,9 +461,9 @@ $tipos_barcode = [
     }
     
     // ==============================================
-    // FUNCIÓN PRINCIPAL CON AJAX
+    // FUNCIÓN PRINCIPAL CON AJAX - MODIFICADA
     // ==============================================
-    
+
     async function generarEtiquetasConAjax() {
         console.log('🔄 Iniciando generación de etiquetas...');
         
@@ -487,11 +508,10 @@ $tipos_barcode = [
             return false;
         }
         
-        // 5. Mostrar loading
-        const loadingOverlay = document.getElementById('loadingOverlay');
+        // 5. Mostrar loading SOLO DESPUÉS DE CONFIRMAR
+        mostrarLoading();
         const btnGenerar = document.getElementById('btnGenerarAjax');
         
-        loadingOverlay.style.display = 'flex';
         btnGenerar.disabled = true;
         btnGenerar.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Procesando...';
         
@@ -513,20 +533,27 @@ $tipos_barcode = [
             
             // 7. Procesar respuesta
             if (data.success) {
-                // Éxito - Redirigir a imprimir
-                window.location.href = 'imprimir_etiquetas.php';
+                // Éxito - Cambiar mensaje brevemente
+                btnGenerar.innerHTML = '<i class="fas fa-check me-1"></i> ¡Listo!';
+                
+                // Pequeña pausa para mostrar el mensaje de éxito (100ms)
+                setTimeout(() => {
+                    // Redirigir a la página de impresión
+                    window.location.href = 'imprimir_etiquetas.php';
+                }, 100);
+                
             } else {
-                // Error
+                // Error - Ocultar loading y restaurar botón
+                ocultarLoading();
                 alert('❌ Error: ' + (data.message || 'Error al generar etiquetas'));
-                loadingOverlay.style.display = 'none';
                 btnGenerar.disabled = false;
                 btnGenerar.innerHTML = '<i class="fas fa-print me-1"></i> Generar Etiquetas';
             }
             
         } catch (error) {
             console.error('Error en la solicitud:', error);
+            ocultarLoading();
             alert('❌ Error de conexión. Intente nuevamente.');
-            loadingOverlay.style.display = 'none';
             btnGenerar.disabled = false;
             btnGenerar.innerHTML = '<i class="fas fa-print me-1"></i> Generar Etiquetas';
         }
@@ -573,5 +600,10 @@ $tipos_barcode = [
         });
     });
     </script>
-</body>
-</html>
+<?php
+$contenido = ob_get_clean(); 
+$GLOBALS['pageStyles'] = $pageStyles;
+$GLOBALS['pageScripts'] = $pageScripts;
+// Incluir el layout
+include 'layout.php';
+?>
