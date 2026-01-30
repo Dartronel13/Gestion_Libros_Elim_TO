@@ -1,25 +1,21 @@
 <?php
-// catalogo_libros.php - VERSIÓN MODIFICADA
+// catalogo_libros.php - VERSIÓN SIMPLIFICADA
 
-// 1. VERIFICACIÓN DE ACCESO (AGREGAR ESTO AL INICIO)
 require_once 'db.php';
-verificarAutenticacion(); // ← ESTA LÍNEA ES NUEVA
+verificarAutenticacion();
 
-// 2. REGISTRAR ACCESO A ESTA PÁGINA
 $db->registrarAccion('acceso', 'catalogo', "Accedió al catálogo de libros");
 
-// Configurar variables para layout
 $titulo_pagina = '📚 Catálogo de Libros';
 $icono_titulo = 'fas fa-book-open';
 
 $mensaje_exito = '';
 $mensaje_error = '';
 
-// 3. PROCESAR ELIMINACIÓN DE LIBRO (CON LOGS DETALLADOS)
+// PROCESAR ELIMINACIÓN DE LIBRO
 if (isset($_GET['eliminar']) && is_numeric($_GET['eliminar'])) {
     $id_eliminar = intval($_GET['eliminar']);
     
-    // 4. REGISTRAR INTENTO DE ELIMINACIÓN
     $db->registrarAccion(
         'intento_eliminar', 
         'catalogo', 
@@ -38,7 +34,6 @@ if (isset($_GET['eliminar']) && is_numeric($_GET['eliminar'])) {
     $row_check = mysqli_fetch_assoc($result_check);
     
     if ($row_check['total'] > 0) {
-        // 5. REGISTRAR ERROR POR PRÉSTAMOS ACTIVOS
         $db->registrarAccion(
             'error_eliminacion', 
             'catalogo', 
@@ -52,7 +47,6 @@ if (isset($_GET['eliminar']) && is_numeric($_GET['eliminar'])) {
         $stmt_eliminar = $db->query($sql_eliminar, [$id_eliminar]);
         
         if ($stmt_eliminar && mysqli_stmt_affected_rows($stmt_eliminar) > 0) {
-            // 6. REGISTRAR ELIMINACIÓN EXITOSA
             $db->registrarAccion(
                 'eliminacion_exitosa', 
                 'catalogo', 
@@ -63,7 +57,6 @@ if (isset($_GET['eliminar']) && is_numeric($_GET['eliminar'])) {
             
             $mensaje_exito = "Libro eliminado correctamente (archivado).";
         } else {
-            // 7. REGISTRAR ERROR EN ELIMINACIÓN
             $db->registrarAccion(
                 'error_eliminacion_bd', 
                 'catalogo', 
@@ -88,36 +81,7 @@ $busqueda = trim($_GET['busqueda'] ?? '');
 $categoria_filtro = $_GET['categoria'] ?? '';
 $stock_filtro = $_GET['stock'] ?? '';
 $pagina = max(1, intval($_GET['pagina'] ?? 1));
-$por_pagina = 20; // Libros por página
-
-// 8. REGISTRAR FILTROS APLICADOS
-$filtros_aplicados = [];
-if (!empty($busqueda)) {
-    $filtros_aplicados[] = "Búsqueda: '{$busqueda}'";
-}
-if (!empty($categoria_filtro) && is_numeric($categoria_filtro)) {
-    // Obtener nombre de la categoría
-    foreach ($categorias as $cat) {
-        if ($cat['id'] == $categoria_filtro) {
-            $filtros_aplicados[] = "Categoría: {$cat['nombre']}";
-            break;
-        }
-    }
-}
-if (!empty($stock_filtro)) {
-    $filtros_aplicados[] = "Stock: " . ($stock_filtro == 'disponible' ? 'Disponibles' : 'Agotados');
-}
-if ($pagina > 1) {
-    $filtros_aplicados[] = "Página: {$pagina}";
-}
-
-if (!empty($filtros_aplicados)) {
-    $db->registrarAccion(
-        'filtros_catalogo', 
-        'catalogo', 
-        "Filtros aplicados al catálogo: " . implode(', ', $filtros_aplicados)
-    );
-}
+$por_pagina = 20;
 
 // Construir consulta base con filtros
 $condiciones = ["l.activo = 1"];
@@ -162,13 +126,11 @@ $total_libros = $row_count['total'];
 $total_paginas = ceil($total_libros / $por_pagina);
 $offset = ($pagina - 1) * $por_pagina;
 
-// 9. REGISTRAR ESTADÍSTICAS DE CONSULTA
 $db->registrarAccion(
     'consulta_catalogo', 
     'catalogo', 
     "Consultando catálogo - Total libros: {$total_libros}, " .
-    "Página {$pagina}/{$total_paginas}, " .
-    "Mostrando {$por_pagina} por página"
+    "Página {$pagina}/{$total_paginas}"
 );
 
 // Obtener libros con filtros y paginación
@@ -192,14 +154,6 @@ while ($row = mysqli_fetch_assoc($result_libros)) {
     $libros[] = $row;
 }
 
-// 10. REGISTRAR RESULTADO DE CONSULTA
-$num_libros = count($libros);
-$db->registrarAccion(
-    'consulta_exitosa', 
-    'catalogo', 
-    "Catálogo consultado - {$num_libros} libros encontrados"
-);
-
 // Estadísticas
 $sql_stats = "SELECT 
                SUM(stock) as total_stock,
@@ -208,80 +162,6 @@ $sql_stats = "SELECT
                FROM libros WHERE activo = 1";
 $result_stats = mysqli_query($link, $sql_stats);
 $stats = mysqli_fetch_assoc($result_stats);
-
-// 11. REGISTRAR ESTADÍSTICAS OBTENIDAS
-$db->registrarAccion(
-    'estadisticas_catalogo', 
-    'catalogo', 
-    "Estadísticas del catálogo - " .
-    "Total stock: {$stats['total_stock']}, " .
-    "Disponibles: {$stats['libros_disponibles']}, " .
-    "Agotados: {$stats['libros_agotados']}"
-);
-
-// 12. AGREGAR LOGS PARA ACCIONES ADICIONALES (si las tienes)
-// Por ejemplo, si tienes botón para exportar catálogo
-if (isset($_GET['exportar']) && $_GET['exportar'] == 'csv') {
-    $db->registrarAccion(
-        'exportacion_catalogo', 
-        'catalogo', 
-        "Exportando catálogo a CSV - {$total_libros} libros"
-    );
-    
-    // ... tu código de exportación ...
-    
-    $db->registrarAccion(
-        'exportacion_completada', 
-        'catalogo', 
-        "Catálogo exportado exitosamente - {$total_libros} libros"
-    );
-}
-
-// 13. PARA AGREGAR/EDITAR LIBROS DESDE ESTA MISMA PÁGINA (si aplica)
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (isset($_POST['agregar_libro'])) {
-        $titulo = trim($_POST['titulo'] ?? '');
-        $autor = trim($_POST['autor'] ?? '');
-        $codigo = trim($_POST['codigo'] ?? '');
-        
-        $db->registrarAccion(
-            'intento_agregar', 
-            'catalogo', 
-            "Intentando agregar nuevo libro - Título: '{$titulo}', Autor: '{$autor}'"
-        );
-        
-        // ... tu código para agregar ...
-        
-        $nuevo_id = mysqli_insert_id($link);
-        $db->registrarAccion(
-            'libro_agregado', 
-            'catalogo', 
-            "Libro agregado exitosamente ID: {$nuevo_id} - '{$titulo}'"
-        );
-        
-    } elseif (isset($_POST['editar_libro'])) {
-        $libro_id = $_POST['id'] ?? 0;
-        
-        $db->registrarAccion(
-            'intento_editar', 
-            'catalogo', 
-            "Intentando editar libro ID: {$libro_id}"
-        );
-        
-        // Obtener datos antes del cambio (para comparar)
-        $sql_antes = "SELECT * FROM libros WHERE id = ?";
-        $stmt_antes = $db->query($sql_antes, [$libro_id]);
-        $datos_antes = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt_antes));
-        
-        
-        $db->registrarAccion(
-            'libro_editado', 
-            'catalogo', 
-            "Libro editado ID: {$libro_id} - " .
-            "Cambios realizados: [detalles de cambios]"
-        );
-    }
-}
 
 ob_start();
 ?>
@@ -340,7 +220,7 @@ ob_start();
     </div>
 </div>
 
-<!-- BARRA DE BÚSQUEDA Y FILTROS -->
+<!-- BARRA DE BÚSQUEDA Y FILTROS (CON BOTONES ARRIBA) -->
 <div class="card mb-4">
     <div class="card-header bg-light">
         <div class="row">
@@ -382,6 +262,7 @@ ob_start();
                 </form>
             </div>
             <div class="col-md-4 text-end">
+                <!-- ESTOS SON LOS ÚNICOS BOTONES SUPERIORES -->
                 <a href="agregar_libro.php" class="btn btn-success me-2">
                     <i class="fas fa-plus me-1"></i> Nuevo Libro
                 </a>
@@ -436,31 +317,7 @@ ob_start();
                             <th width="10%">Stock</th>
                             <th width="20%">Categorías</th>
                             <th width="10%">Acciones</th>
-                                                    <td>
-    <div class="btn-group btn-group-sm" role="group">
-        <a href="editar_libro.php?id=<?php echo $libro['id']; ?>" 
-           class="btn btn-outline-primary" title="Editar">
-            <i class="fas fa-edit"></i>
-        </a>
-        <button type="button" 
-                class="btn btn-outline-info" 
-                title="Generar Etiqueta"
-                onclick="generarEtiquetaIndividual('<?php echo htmlspecialchars(addslashes($libro['codigo_interno'])); ?>', 
-                                                   '<?php echo htmlspecialchars(addslashes($libro['titulo'])); ?>',
-                                                   '<?php echo htmlspecialchars(addslashes($libro['autor'])); ?>')">
-            <i class="fas fa-barcode"></i>
-        </button>
-        <button type="button" 
-                class="btn btn-outline-danger" 
-                title="Eliminar"
-                onclick="confirmarEliminacion(<?php echo $libro['id']; ?>, '<?php echo htmlspecialchars(addslashes($libro['titulo'])); ?>')">
-            <i class="fas fa-trash"></i>
-        </button>
-    </div>
-</td>
-                            
                         </tr>
-
                     </thead>
                     <tbody>
                         <?php foreach ($libros as $libro): 
@@ -496,14 +353,24 @@ ob_start();
                                 <?php endif; ?>
                             </td>
                             <td>
+                                <!-- SOLO TRES BOTONES: MODIFICAR, CÓDIGO DE BARRAS, ELIMINAR -->
                                 <div class="btn-group btn-group-sm" role="group">
+                                    <!-- 1. MODIFICAR -->
                                     <a href="editar_libro.php?id=<?php echo $libro['id']; ?>" 
-                                       class="btn btn-outline-primary" title="Editar">
+                                       class="btn btn-outline-primary" title="Editar libro">
                                         <i class="fas fa-edit"></i>
                                     </a>
+                                    
+                                    <!-- 2. GENERAR CÓDIGO DE BARRAS -->
+                                    <a href="generar_etiquetas.php?codigo=<?php echo urlencode($libro['codigo_interno']); ?>" 
+                                       class="btn btn-outline-info" title="Generar etiqueta con código de barras">
+                                        <i class="fas fa-barcode"></i>
+                                    </a>
+                                    
+                                    <!-- 3. ELIMINAR -->
                                     <button type="button" 
                                             class="btn btn-outline-danger" 
-                                            title="Eliminar"
+                                            title="Eliminar libro"
                                             onclick="confirmarEliminacion(<?php echo $libro['id']; ?>, '<?php echo htmlspecialchars(addslashes($libro['titulo'])); ?>')">
                                         <i class="fas fa-trash"></i>
                                     </button>
@@ -515,7 +382,7 @@ ob_start();
                 </table>
             </div>
             
-            <!-- PAGINACIÓN -->
+            <!-- PAGINACIÓN (CONSERVADA) -->
             <?php if ($total_paginas > 1): ?>
             <nav aria-label="Paginación">
                 <ul class="pagination justify-content-center">
@@ -551,25 +418,20 @@ ob_start();
             </nav>
             <?php endif; ?>
             
-            <div class="d-flex justify-content-between align-items-center mt-3">
-                <div class="text-muted">
-                    Página <?php echo $pagina; ?> de <?php echo $total_paginas; ?> 
-                    • Total en stock: <?php echo $stats['total_stock']; ?> copias
-                </div>
-                <div>
-                    <a href="javascript:window.print()" class="btn btn-outline-primary me-2">
-                        <i class="fas fa-print me-1"></i> Imprimir
-                    </a>
-                    <a href="agregar_libro.php" class="btn btn-success">
-                        <i class="fas fa-plus me-1"></i> Agregar Libro
-                    </a>
-                </div>
+            <!-- ELIMINADO: Sección de botones inferiores (redundante) -->
+            <!-- NO HAY MÁS BOTONES DE "Imprimir" o "Agregar Libro" aquí abajo -->
+            
+            <!-- Solo información de página -->
+            <div class="text-center text-muted mt-3">
+                Página <?php echo $pagina; ?> de <?php echo $total_paginas; ?> 
+                • Total en stock: <?php echo $stats['total_stock']; ?> copias
             </div>
+            
         <?php endif; ?>
     </div>
 </div>
 
-<!-- MODAL DE CONFIRMACIÓN DE ELIMINACIÓN -->
+<!-- MODAL DE CONFIRMACIÓN DE ELIMINACIÓN (CONSERVADO) -->
 <div class="modal fade" id="modalConfirmarEliminacion" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -597,6 +459,7 @@ ob_start();
     </div>
 </div>
 
+<!-- SCRIPT PARA ELIMINACIÓN (CONSERVADO) -->
 <script>
 function confirmarEliminacion(id, titulo) {
     document.getElementById('tituloLibroEliminar').textContent = titulo;
@@ -606,7 +469,7 @@ function confirmarEliminacion(id, titulo) {
     modal.show();
 }
 
-// Detección de código de barras para búsqueda rápida
+// Detección de código de barras para búsqueda rápida (CONSERVADO)
 document.addEventListener('DOMContentLoaded', function() {
     const inputBusqueda = document.querySelector('input[name="busqueda"]');
     let timerEscaneo = null;

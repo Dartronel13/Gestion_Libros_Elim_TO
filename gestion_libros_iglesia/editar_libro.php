@@ -1,9 +1,8 @@
 <?php
 // editar_libro.php
 
-// 1. VERIFICACIÓN DE ACCESO (AGREGAR ESTO AL INICIO)
 require_once 'db.php';
-verificarAutenticacion(); // ← ESTA LÍNEA ES NUEVA
+verificarAutenticacion();
 
 // Configurar variables para layout
 $titulo_pagina = '✏️ Editar Libro';
@@ -13,7 +12,7 @@ $mensaje_exito = '';
 $mensaje_error = '';
 $errores = [];
 
-// 2. REGISTRAR ACCESO A EDICIÓN
+// Registrar acceso a edición
 $db->registrarAccion('acceso_edicion', 'catalogo', "Accedió a editar libro");
 
 // Verificar que se haya proporcionado ID
@@ -25,10 +24,10 @@ if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
 
 $id_libro = intval($_GET['id']);
 
-// 3. REGISTRAR CONSULTA DE LIBRO
+// Registrar consulta de libro
 $db->registrarAccion('consulta_libro', 'catalogo', "Consultando datos del libro ID: {$id_libro}");
 
-// Obtener categorías (usando el mismo método consistente)
+// Obtener categorías
 $sql_categorias = "SELECT id, nombre FROM categorias ORDER BY nombre";
 $stmt_categorias = $db->query($sql_categorias);
 $result_categorias = $stmt_categorias->get_result();
@@ -44,13 +43,12 @@ $result_libro = $stmt_libro->get_result();
 $libro = $result_libro->fetch_assoc();
 
 if (!$libro) {
-    // 4. REGISTRAR LIBRO NO ENCONTRADO
     $db->registrarAccion('libro_no_encontrado', 'catalogo', "Libro ID: {$id_libro} no encontrado o inactivo");
     header('Location: catalogo_libros.php');
     exit;
 }
 
-// 5. REGISTRAR LIBRO ENCONTRADO
+// Registrar libro encontrado
 $db->registrarAccion(
     'libro_encontrado', 
     'catalogo', 
@@ -69,7 +67,6 @@ while ($row = $result_cats->fetch_assoc()) {
 // Procesar actualización
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actualizar_libro'])) {
     
-    // 6. REGISTRAR INICIO DE ACTUALIZACIÓN
     $db->registrarAccion('inicio_actualizacion', 'catalogo', "Iniciando actualización del libro ID: {$id_libro}");
     
     // Guardar datos antes del cambio
@@ -83,15 +80,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actualizar_libro'])) 
     $isbn = trim($_POST['isbn'] ?? '');
     $stock = intval($_POST['stock'] ?? 1);
     $categorias_seleccionadas = $_POST['categorias'] ?? [];
-    
-    // 7. REGISTRAR DATOS RECIBIDOS
-    $db->registrarAccion(
-        'datos_recibidos', 
-        'catalogo', 
-        "Datos recibidos para libro ID: {$id_libro} - " .
-        "Título: '{$titulo}', Autor: '{$autor}', Stock: {$stock}, " .
-        "Categorías seleccionadas: " . count($categorias_seleccionadas)
-    );
     
     // VALIDACIONES
     $errores_validacion = [];
@@ -116,7 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actualizar_libro'])) 
         $errores[] = "Los siguientes campos son obligatorios: " . implode(', ', $errores_validacion);
     }
     
-    // 2. Validar código interno único (excluyendo el libro actual)
+    // 2. Validar código interno único
     if (!empty($codigo_interno) && $codigo_interno != $libro['codigo_interno']) {
         $sql_check_codigo = "SELECT id FROM libros WHERE codigo_interno = ? AND id != ? AND activo = 1";
         $stmt_check = $db->query($sql_check_codigo, [$codigo_interno, $id_libro]);
@@ -132,7 +120,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actualizar_libro'])) 
         $result_check->free();
     }
     
-    // 3. Validar ISBN único (excluyendo el libro actual)
+    // 3. Validar ISBN único
     if (!empty($isbn) && $isbn != $libro['isbn']) {
         $sql_check_isbn = "SELECT id, titulo FROM libros WHERE isbn = ? AND id != ? AND activo = 1";
         $stmt_check_isbn = $db->query($sql_check_isbn, [$isbn, $id_libro]);
@@ -176,7 +164,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actualizar_libro'])) 
     // Si no hay errores, actualizar
     if (empty($errores)) {
         try {
-            // 8. REGISTRAR INICIO DE TRANSACCIÓN
             $db->registrarAccion('inicio_transaccion', 'catalogo', "Iniciando transacción para libro ID: {$id_libro}");
             
             // Iniciar transacción
@@ -206,7 +193,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actualizar_libro'])) 
                 throw new Exception("Error al actualizar el libro.");
             }
             
-            // 9. REGISTRAR LIBRO ACTUALIZADO
             $db->registrarAccion(
                 'libro_actualizado_bd', 
                 'catalogo', 
@@ -217,7 +203,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actualizar_libro'])) 
             $sql_delete_cats = "DELETE FROM libro_categoria WHERE id_libro = ?";
             $db->query($sql_delete_cats, [$id_libro]);
             
-            // 10. REGISTRAR CATEGORÍAS ELIMINADAS
             if (!empty($categorias_antes)) {
                 $db->registrarAccion(
                     'categorias_eliminadas', 
@@ -235,7 +220,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actualizar_libro'])) 
                     }
                 }
                 
-                // 11. REGISTRAR CATEGORÍAS ASIGNADAS
                 $db->registrarAccion(
                     'categorias_asignadas', 
                     'catalogo', 
@@ -246,7 +230,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actualizar_libro'])) 
             // Confirmar transacción
             $link->commit();
             
-            // 12. REGISTRAR TRANSACCIÓN EXITOSA
             $db->registrarAccion(
                 'transaccion_exitosa', 
                 'catalogo', 
@@ -255,7 +238,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actualizar_libro'])) 
             
             $mensaje_exito = "Libro '$titulo' actualizado exitosamente.";
             
-            // 13. REGISTRAR CAMBIOS DETALLADOS
+            // Registrar cambios detallados
             $cambios = [];
             if ($datos_antes['titulo'] != $titulo) {
                 $cambios[] = "título: '{$datos_antes['titulo']}' → '{$titulo}'";
@@ -314,7 +297,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actualizar_libro'])) 
             $categorias_actuales = $categorias_seleccionadas;
             
         } catch (Exception $e) {
-            // 14. REGISTRAR ERROR EN TRANSACCIÓN
             $link->rollback();
             
             $db->registrarAccion(
@@ -326,7 +308,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actualizar_libro'])) 
             $mensaje_error = "Error al actualizar el libro: " . $e->getMessage();
         }
     } else {
-        // 15. REGISTRAR ERRORES DE VALIDACIÓN
         $db->registrarAccion(
             'validacion_fallida', 
             'catalogo', 
@@ -337,7 +318,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actualizar_libro'])) 
     }
 }
 
-// Obtener estadísticas de préstamos para este libro
+// Obtener estadísticas de préstamos para este libro (CORREGIDO)
 $sql_prestamos = "SELECT 
                  COUNT(*) as total_prestamos,
                  SUM(CASE WHEN devuelto = 0 THEN 1 ELSE 0 END) as prestamos_activos
@@ -346,13 +327,27 @@ $stmt_prestamos = $db->query($sql_prestamos, [$id_libro]);
 $result_prestamos = $stmt_prestamos->get_result();
 $prestamos = $result_prestamos->fetch_assoc();
 
-// 16. REGISTRAR ESTADÍSTICAS OBTENIDAS
+// Registrar estadísticas obtenidas
 $db->registrarAccion(
     'estadisticas_prestamos', 
     'catalogo', 
     "Estadísticas préstamos libro ID: {$id_libro} - " .
     "Total: {$prestamos['total_prestamos']}, Activos: {$prestamos['prestamos_activos']}"
 );
+
+// Obtener historial de movimientos recientes del libro (CORREGIDO)
+$sql_historial = "SELECT 
+                 p.fecha_prestamo,
+                 CONCAT(l.nombre, ' ', l.apellido) as lector,
+                 p.fecha_devolucion,
+                 p.devuelto
+                 FROM prestamos p
+                 LEFT JOIN lectores l ON p.id_lector = l.id
+                 WHERE p.id_libro = ?
+                 ORDER BY p.fecha_prestamo DESC
+                 LIMIT 5";
+$stmt_historial = $db->query($sql_historial, [$id_libro]);
+$historial_prestamos = $stmt_historial->get_result();
 
 ob_start();
 ?>
@@ -553,11 +548,6 @@ ob_start();
                             <i class="fas fa-times me-1"></i> Cancelar
                         </a>
                         
-                        <button type="button" class="btn btn-outline-danger me-2" 
-                                onclick="confirmarEliminacion(<?php echo $id_libro; ?>, '<?php echo htmlspecialchars(addslashes($libro['titulo'])); ?>')">
-                            <i class="fas fa-trash me-1"></i> Eliminar
-                        </button>
-                        
                         <button type="submit" name="actualizar_libro" class="btn btn-primary">
                             <i class="fas fa-save me-1"></i> Guardar Cambios
                         </button>
@@ -568,7 +558,7 @@ ob_start();
     </div>
     
     <div class="col-lg-4">
-        <!-- PANEL DE INFORMACIÓN -->
+        <!-- PANEL DE INFORMACIÓN Y ESTADÍSTICAS -->
         <div class="card mb-4">
             <div class="card-header bg-info text-white">
                 <h6 class="mb-0">
@@ -608,72 +598,51 @@ ob_start();
             </div>
         </div>
         
-        <!-- PANEL DE ACCIONES RÁPIDAS -->
+        <!-- PANEL DE HISTORIAL RECIENTE -->
         <div class="card">
             <div class="card-header bg-light">
                 <h6 class="mb-0">
-                    <i class="fas fa-bolt me-2"></i>
-                    Acciones Rápidas
+                    <i class="fas fa-history me-2"></i>
+                    Historial Reciente
                 </h6>
             </div>
             <div class="card-body">
-                <div class="d-grid gap-2">
-                    <a href="catalogo_libros.php?busqueda=<?php echo urlencode($libro['codigo_interno']); ?>" 
-                       class="btn btn-outline-primary btn-sm">
-                        <i class="fas fa-search me-1"></i> Buscar en Catálogo
-                    </a>
+                <?php if ($historial_prestamos->num_rows > 0): ?>
+                    <div class="list-group list-group-flush small">
+                        <?php while ($movimiento = $historial_prestamos->fetch_assoc()): ?>
+                            <div class="list-group-item px-0 py-2">
+                                <div class="d-flex w-100 justify-content-between">
+                                    <small class="text-muted">
+                                        <?php echo date('d/m/Y', strtotime($movimiento['fecha_prestamo'])); ?>
+                                    </small>
+                                    <span class="badge bg-<?php echo $movimiento['devuelto'] ? 'success' : 'warning'; ?>">
+                                        <?php echo $movimiento['devuelto'] ? 'DEVUELTO' : 'PRESTADO'; ?>
+                                    </span>
+                                </div>
+                                <small><?php echo htmlspecialchars($movimiento['lector'] ?? 'Lector no especificado'); ?></small>
+                                <?php if ($movimiento['devuelto'] && $movimiento['fecha_devolucion']): ?>
+                                    <div class="text-muted mt-1">
+                                        <i class="fas fa-undo-alt fa-xs me-1"></i>
+                                        Devuelto: <?php echo date('d/m/Y', strtotime($movimiento['fecha_devolucion'])); ?>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                        <?php endwhile; ?>
+                    </div>
                     
-                    <a href="agregar_libro.php?duplicar=<?php echo $id_libro; ?>" 
-                       class="btn btn-outline-success btn-sm">
-                        <i class="fas fa-copy me-1"></i> Duplicar Libro
-                    </a>
-                    
-                    <button type="button" class="btn btn-outline-info btn-sm" 
-                            onclick="imprimirFicha()">
-                        <i class="fas fa-print me-1"></i> Imprimir Ficha
-                    </button>
-                    
-                    <a href="javascript:history.back()" 
-                       class="btn btn-outline-secondary btn-sm">
-                        <i class="fas fa-arrow-left me-1"></i> Volver Atrás
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- MODAL DE CONFIRMACIÓN DE ELIMINACIÓN -->
-<div class="modal fade" id="modalConfirmarEliminacion" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header bg-warning text-white">
-                <h5 class="modal-title">
-                    <i class="fas fa-exclamation-triangle me-2"></i>
-                    Confirmar Eliminación
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <p>¿Está seguro de eliminar el libro <strong id="tituloLibroEliminar"></strong>?</p>
-                
-                <div class="alert alert-danger">
-                    <i class="fas fa-exclamation-circle me-2"></i>
-                    <strong>ADVERTENCIA:</strong> 
-                    <?php if ($prestamos['prestamos_activos'] > 0): ?>
-                        Este libro tiene préstamos activos. No se puede eliminar hasta que se devuelvan.
-                    <?php else: ?>
-                        Esta acción archivará el libro y no podrá ser prestado nuevamente.
+                    <?php if ($prestamos['total_prestamos'] > 5): ?>
+                        <div class="text-center mt-3">
+                            <a href="historial_libro.php?id=<?php echo $id_libro; ?>" 
+                               class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-list me-1"></i> Ver Historial Completo
+                            </a>
+                        </div>
                     <?php endif; ?>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <?php if ($prestamos['prestamos_activos'] == 0): ?>
-                <a href="catalogo_libros.php?eliminar=<?php echo $id_libro; ?>&redirigir=1" 
-                   id="btnConfirmarEliminar" class="btn btn-danger">
-                    <i class="fas fa-trash me-1"></i> Sí, Eliminar
-                </a>
+                <?php else: ?>
+                    <div class="text-center py-3">
+                        <i class="fas fa-book-open fa-2x text-muted mb-2"></i>
+                        <p class="text-muted mb-0">No hay préstamos registrados</p>
+                    </div>
                 <?php endif; ?>
             </div>
         </div>
@@ -681,12 +650,6 @@ ob_start();
 </div>
 
 <script>
-function confirmarEliminacion(id, titulo) {
-    document.getElementById('tituloLibroEliminar').textContent = titulo;
-    
-    const modal = new bootstrap.Modal(document.getElementById('modalConfirmarEliminacion'));
-    modal.show();
-}
 
 function imprimirFicha() {
     // Abrir ventana de impresión con ficha del libro
