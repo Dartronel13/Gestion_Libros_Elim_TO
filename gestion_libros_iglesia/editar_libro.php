@@ -401,7 +401,7 @@ ob_start();
     <div class="col-lg-8">
         <!-- FORMULARIO DE EDICIÓN -->
         <div class="card">
-            <div class="card-header gradient-book text-white">
+            <div class="card-header gradient-book text-dark">
                 <div class="d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">
                         <i class="fas fa-edit me-2"></i>

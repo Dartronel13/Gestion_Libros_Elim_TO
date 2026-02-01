@@ -54,7 +54,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['agregar_libro'])) {
     $titulo = trim($_POST['titulo'] ?? '');
     $autor = trim($_POST['autor'] ?? '');
     $ano_publicacion = !empty($_POST['ano_publicacion']) ? intval($_POST['ano_publicacion']) : null;
-    $isbn = trim($_POST['isbn'] ?? '');
+    
+    // MODIFICACIÓN IMPORTANTE: Procesar ISBN para que sea NULL cuando esté vacío
+    $isbn_raw = trim($_POST['isbn'] ?? '');
+    $isbn = ($isbn_raw === '') ? null : $isbn_raw;
+    
     $stock = intval($_POST['stock'] ?? 1);
     $categorias_seleccionadas = $_POST['categorias'] ?? [];
     
@@ -80,8 +84,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['agregar_libro'])) {
         }
     }
     
-    // 3. Validar ISBN único (si se proporciona)
-    if (!empty($isbn)) {
+    // 3. Validar ISBN único (solo si no es NULL)
+    if ($isbn !== null) {
         $sql_check_isbn = "SELECT id, codigo_interno, titulo FROM libros WHERE isbn = ? AND activo = 1";
         $stmt_check_isbn = $db->query($sql_check_isbn, [$isbn]);
         $result_check_isbn = mysqli_stmt_get_result($stmt_check_isbn);
@@ -112,18 +116,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['agregar_libro'])) {
             // Iniciar transacción
             mysqli_begin_transaction($link);
             
+            // MODIFICACIÓN IMPORTANTE: Preparar los valores para la inserción
+            $valores_insert = [
+                $codigo_interno, 
+                $titulo, 
+                $autor, 
+                $ano_publicacion, 
+                $isbn,  // Este puede ser NULL o string
+                $stock
+            ];
+            
             // Insertar libro
             $sql_insert = "INSERT INTO libros (codigo_interno, titulo, autor, año_publicacion, isbn, stock) 
                           VALUES (?, ?, ?, ?, ?, ?)";
-            $stmt_insert = $db->query($sql_insert, [
-                $codigo_interno, $titulo, $autor, $ano_publicacion, $isbn, $stock
-            ]);
+            $stmt_insert = mysqli_prepare($link, $sql_insert);
             
             if (!$stmt_insert) {
-                throw new Exception("Error al insertar el libro.");
+                throw new Exception("Error al preparar la consulta: " . mysqli_error($link));
+            }
+            
+            // Determinar tipos de parámetros (isbn puede ser NULL)
+            $tipos = "sssisi"; // s=string, i=integer
+            
+            // Para manejar NULL en MySQLi, necesitamos preparar los valores
+            mysqli_stmt_bind_param($stmt_insert, $tipos, ...$valores_insert);
+            
+            if (!mysqli_stmt_execute($stmt_insert)) {
+                throw new Exception("Error al insertar el libro: " . mysqli_stmt_error($stmt_insert));
             }
             
             $id_libro = mysqli_insert_id($link);
+            mysqli_stmt_close($stmt_insert);
             
             // Asignar categorías
             if (!empty($categorias_seleccionadas)) {
@@ -198,7 +221,7 @@ ob_start();
     <div class="col-lg-8">
         <!-- FORMULARIO PRINCIPAL -->
         <div class="card">
-            <div class="card-header gradient-book text-white">
+            <div class="card-header gradient-book text-dark">
                 <h5 class="mb-0">
                     <i class="fas fa-book-medical me-2"></i>
                     Información del Libro
@@ -237,7 +260,7 @@ ob_start();
                                 <input type="text" class="form-control" id="isbn" 
                                        name="isbn" 
                                        value="<?php echo htmlspecialchars($_POST['isbn'] ?? ''); ?>" 
-                                       placeholder="978-3-16-148410-0">
+                                       placeholder="978-3-16-148410-0 (opcional)">
                                 <button type="button" class="btn btn-outline-primary" 
                                         onclick="buscarPorISBN()"
                                         title="Buscar información por ISBN">
@@ -245,7 +268,7 @@ ob_start();
                                 </button>
                             </div>
                             <div class="form-text">
-                                Escanee el código de barras ISBN o ingréselo manualmente.
+                                Escanee el código de barras ISBN o ingréselo manualmente. Déjelo vacío si no tiene ISBN.
                             </div>
                         </div>
                     </div>
@@ -281,7 +304,7 @@ ob_start();
                             <input type="number" class="form-control" id="ano_publicacion" 
                                    name="ano_publicacion" 
                                    value="<?php echo htmlspecialchars($_POST['ano_publicacion'] ?? ''); ?>" 
-                                   placeholder="Ej: 2024" 
+                                   placeholder="Ej: 2024 (opcional)" 
                                    min="1000" 
                                    max="<?php echo date('Y'); ?>">
                         </div>
@@ -518,8 +541,10 @@ document.addEventListener('DOMContentLoaded', function() {
             // Poner en campo ISBN
             inputISBN.value = isbnFormateado;
             
-            // Verificar si ya existe
-            verificarISBNExistente(isbnFormateado);
+            // Verificar si ya existe (solo si no está vacío)
+            if (isbnFormateado.trim() !== '') {
+                verificarISBNExistente(isbnFormateado);
+            }
             
             // Enfocar siguiente campo
             inputTitulo.focus();
@@ -725,6 +750,11 @@ document.addEventListener('DOMContentLoaded', function() {
                         isbn.substring(4, 9) + '-' + 
                         isbn.substring(9, 12) + '-' + 
                         isbn.substring(12);
+        }
+        
+        // Si después de formatear queda vacío, limpiar el campo
+        if (this.value.trim() === '') {
+            this.value = '';
         }
     });
 });
